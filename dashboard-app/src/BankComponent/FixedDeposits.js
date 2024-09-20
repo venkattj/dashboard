@@ -66,7 +66,7 @@ const StyledTextField = styled(TextField)`
 
 const FixedDeposit = () => {
   const [rows, setRows] = useState([]);
-  const [newRow, setNewRow] = useState({ bank: '', createdDate: '', invested: '', interest: '', maturityDate: '' });
+  const [newRow, setNewRow] = useState({sno: '', bank: '', createdDate: '', invested: '', interest: '', maturityDate: '' });
   const [editRowIndex, setEditRowIndex] = useState(null);
   const [editRowData, setEditRowData] = useState(null);
 
@@ -74,8 +74,12 @@ const FixedDeposit = () => {
     const fetchDeposits = async () => {
       try {
         const response = await api.get('/api/fixed-deposits');
+        console.log('API Response:', response.data);
+
+        // Convert snake_case to camelCase and parse numeric values
         const deposits = response.data.map(deposit => ({
-          id: deposit.sno,
+          id: deposit.id,
+          sno: deposit.id,
           bank: deposit.bank,
           createdDate: deposit.created_date,
           invested: parseFloat(deposit.invested) || 0,
@@ -100,8 +104,8 @@ const FixedDeposit = () => {
         interest: newRow.interest,
         maturity_date: newRow.maturityDate
       });
-      setRows([...rows, { ...newRow, id: response.data.sno, invested: parseFloat(newRow.invested) }]);
-      setNewRow({ bank: '', createdDate: '', invested: '', interest: '', maturityDate: '' });
+      setRows([...rows, { ...newRow, id: response.data.id, invested: parseFloat(newRow.invested) }]);
+      setNewRow({ sno: '',bank: '', createdDate: '', invested: '', interest: '', maturityDate: '' });
     } catch (error) {
       console.error('Error adding deposit:', error);
     }
@@ -150,6 +154,7 @@ const FixedDeposit = () => {
       <Header>Fixed Deposits</Header>
 
       <AddForm>
+        <StyledTextField label="S.No" variant="outlined" size="small" name="sno" value={newRow.sno} onChange={(e) => handleInputChange(e, setNewRow, newRow)} />
         <StyledTextField label="Bank" variant="outlined" size="small" name="bank" value={newRow.bank} onChange={(e) => handleInputChange(e, setNewRow, newRow)} />
         <StyledTextField label="Created Date" variant="outlined" size="small" name="createdDate" value={newRow.createdDate} onChange={(e) => handleInputChange(e, setNewRow, newRow)} />
         <StyledTextField label="Invested Amount" variant="outlined" size="small" name="invested" value={newRow.invested} onChange={(e) => handleInputChange(e, setNewRow, newRow)} />
@@ -176,7 +181,7 @@ const FixedDeposit = () => {
               <TableRow key={row.id}>
                 {editRowIndex === index ? (
                   <>
-                    <TableCell><StyledTextField size="small" value={editRowData.id} name="id" disabled /></TableCell>
+                    <TableCell><StyledTextField size="small" value={editRowData.sno} name="sno" onChange={(e) => handleInputChange(e, setEditRowData, editRowData)} /></TableCell>
                     <TableCell><StyledTextField size="small" value={editRowData.bank} name="bank" onChange={(e) => handleInputChange(e, setEditRowData, editRowData)} /></TableCell>
                     <TableCell><StyledTextField size="small" value={editRowData.createdDate} name="createdDate" onChange={(e) => handleInputChange(e, setEditRowData, editRowData)} /></TableCell>
                     <TableCell><StyledTextField size="small" value={editRowData.invested} name="invested" onChange={(e) => handleInputChange(e, setEditRowData, editRowData)} /></TableCell>
@@ -188,7 +193,7 @@ const FixedDeposit = () => {
                   </>
                 ) : (
                   <>
-                    <TableCell>{row.id}</TableCell>
+                    <TableCell>{row.sno}</TableCell>
                     <TableCell>{row.bank}</TableCell>
                     <TableCell>{row.createdDate}</TableCell>
                     <TableCell>{row.invested.toFixed(2)}</TableCell>

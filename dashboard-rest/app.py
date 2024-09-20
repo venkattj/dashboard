@@ -21,8 +21,8 @@ def get_fixed_deposits():
     cur = mysql.connection.cursor()
     cur.execute("SELECT * FROM fixed_deposits")
     results = cur.fetchall()
-    fixed_deposits = [{'sno': row[0], 'bank': row[1], 'invested': row[2], 'interest': row[3], 'maturity_date': row[4].strftime('%d-%m-%Y'),
-                       'created_date': row[5].strftime('%d-%m-%Y'), 'today': row[6].strftime('%d-%m-%Y'), 'current_amount': row[7], 'day_to_mature': row[8]}
+    fixed_deposits = [{'id': row[0], 'bank': row[1], 'invested': row[2], 'interest': row[3], 'maturity_date': row[4].strftime('%d-%m-%Y'),
+                       'created_date': row[5].strftime('%d-%m-%Y')}
                       for row in results]
     cur.close()
     return jsonify(fixed_deposits)
@@ -31,29 +31,30 @@ def get_fixed_deposits():
 @app.route('/api/fixed-deposits', methods=['POST'])
 def add_fixed_deposit():
     data = request.json
+    print(data)
     cur = mysql.connection.cursor()
-    cur.execute("INSERT INTO fixed_deposits (sno, bank, invested, interest, maturity_date, created_date, today, current_amount, day_to_mature) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
-                (data['sno'], data['bank'], data['invested'], data['interest'], data['maturity_date'], data['created_date'], data['today'], data['current_amount'], data['day_to_mature']))
+    cur.execute("INSERT INTO fixed_deposits ( bank, invested, interest, maturity_date, created_date) VALUES ( %s, %s, %s, %s, %s)",
+                ( data['bank'], data['invested'], data['interest'], data['maturity_date'], data['created_date']))
     mysql.connection.commit()
     cur.close()
     return jsonify({'message': 'Fixed deposit added successfully!'}), 201
 
 # Update a fixed deposit
-@app.route('/api/fixed-deposits/<int:sno>', methods=['PUT'])
-def update_fixed_deposit(sno):
+@app.route('/api/fixed-deposits/<int:id>', methods=['PUT'])
+def update_fixed_deposit(id):
     data = request.json
     cur = mysql.connection.cursor()
-    cur.execute("UPDATE fixed_deposits SET bank=%s, invested=%s, interest=%s, maturity_date=%s, created_date=%s, today=%s, current_amount=%s, day_to_mature=%s WHERE sno=%s",
-                (data['bank'], data['invested'], data['interest'], data['maturity_date'], data['created_date'], data['today'], data['current_amount'], data['day_to_mature'], sno))
+    cur.execute("UPDATE fixed_deposits SET bank=%s, invested=%s, interest=%s, maturity_date=%s, created_date=%s WHERE id=%s",
+                (data['bank'], data['invested'], data['interest'], data['maturity_date'], data['created_date'], id))
     mysql.connection.commit()
     cur.close()
     return jsonify({'message': 'Fixed deposit updated successfully!'})
 
 # Delete a fixed deposit
-@app.route('/api/fixed-deposits/<int:sno>', methods=['DELETE'])
-def delete_fixed_deposit(sno):
+@app.route('/api/fixed-deposits/<int:id>', methods=['DELETE'])
+def delete_fixed_deposit(id):
     cur = mysql.connection.cursor()
-    cur.execute("DELETE FROM fixed_deposits WHERE sno=%s", (sno,))
+    cur.execute("DELETE FROM fixed_deposits WHERE id=%s", (id,))
     mysql.connection.commit()
     cur.close()
     return jsonify({'message': 'Fixed deposit deleted successfully!'})
