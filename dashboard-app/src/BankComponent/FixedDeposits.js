@@ -173,10 +173,10 @@ const FixedDeposit = () => {
       <AddForm>
         <StyledTextField label="S.No" variant="outlined" size="small" name="sno" value={newRow.sno} onChange={(e) => handleInputChange(e, setNewRow, newRow)} />
         <StyledTextField label="Bank" variant="outlined" size="small" name="bank" value={newRow.bank} onChange={(e) => handleInputChange(e, setNewRow, newRow)} />
-        <StyledTextField label="Created Date" variant="outlined" size="small" name="createdDate" value={newRow.createdDate} onChange={(e) => handleInputChange(e, setNewRow, newRow)} />
+        <StyledTextField label="Created Date" variant="outlined" size="small" name="createdDate" type="date" value={newRow.createdDate} onChange={(e) => handleInputChange(e, setNewRow, newRow)} InputLabelProps={{ shrink: true }} style={{ width: 'auto' }} />
         <StyledTextField label="Invested Amount" variant="outlined" size="small" name="invested" value={newRow.invested} onChange={(e) => handleInputChange(e, setNewRow, newRow)} />
         <StyledTextField label="Interest" variant="outlined" size="small" name="interest" value={newRow.interest} onChange={(e) => handleInputChange(e, setNewRow, newRow)} />
-        <StyledTextField label="Maturity Date" variant="outlined" size="small" name="maturityDate" value={newRow.maturityDate} onChange={(e) => handleInputChange(e, setNewRow, newRow)} />
+        <StyledTextField label="Maturity Date" variant="outlined" size="small" type="date" name="maturityDate" value={newRow.maturityDate} onChange={(e) => handleInputChange(e, setNewRow, newRow)} InputLabelProps={{ shrink: true }} style={{ width: 'auto' }}/>
         <Button variant="contained" color="primary" onClick={handleAddDeposit}>Add Deposit</Button>
       </AddForm>
 
