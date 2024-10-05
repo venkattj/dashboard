@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Button, TextField, IconButton } from '@mui/material';
+import { Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Button, TextField, IconButton, TableSortLabel } from '@mui/material';
 import { Link } from 'react-router-dom';
 import { Delete as DeleteIcon, Edit as EditIcon, Save as SaveIcon } from '@mui/icons-material';
 import styled from 'styled-components';
 import api from '../api';
-import dayjs from 'dayjs'; // Use dayjs for date manipulation
+import dayjs from 'dayjs';
 
 const DashboardContainer = styled.div`
   min-height: 100vh;
@@ -73,6 +73,9 @@ const FixedDeposit = () => {
   const parseDate = (dateString) => {
       return dayjs(dateString, 'DD-MM-YYYY'); // Modify this to match your date format
   };
+  // State for sorting
+  const [order, setOrder] = useState('asc');
+  const [orderBy, setOrderBy] = useState('sno');
 
   useEffect(() => {
     const fetchDeposits = async () => {
@@ -80,29 +83,19 @@ const FixedDeposit = () => {
         const response = await api.get('/api/fixed-deposits');
         console.log('API Response:', response.data);
 
-        // Convert snake_case to camelCase and parse numeric values
-        const deposits = response.data.map(deposit => {
-        const createdDate = parseDate(deposit.created_date); // Explicit date parsing
-        const today = parseDate(dayjs()); // Use current date for "Today" value
-        const maturityDate = parseDate(deposit.maturity_date);
-          // Calculate the current value using the formula
-          const daysDifference = today.diff(createdDate, 'day');
-          const currentValue = (daysDifference * parseFloat(deposit.interest) * parseFloat(deposit.invested) / 36500) + parseFloat(deposit.invested);
-          const daysToMature = maturityDate.diff(today, 'day');
+        const deposits = response.data.map(deposit => ({
+          id: deposit.id,
+          sno: deposit.id,
+          bank: deposit.bank,
+          createdDate: deposit.created_date,
+          invested: parseFloat(deposit.invested) || 0,
+          interest: deposit.interest,
+          maturityDate: deposit.maturity_date,
+          currentValue: calculateCurrentValue(deposit).toFixed(2),
+          daysDifference: calculateDaysDifference(deposit),
+          daysToMature: calculateDaysToMature(deposit)
+        }));
 
-          return {
-            id: deposit.id,
-            sno: deposit.id,
-            bank: deposit.bank,
-            createdDate: deposit.created_date,
-            invested: parseFloat(deposit.invested) || 0,
-            interest: deposit.interest,
-            maturityDate: deposit.maturity_date,
-            currentValue: currentValue.toFixed(2), // Store calculated current value
-            daysDifference: daysDifference,
-            daysToMature: daysToMature
-          };
-        });
         setRows(deposits);
       } catch (error) {
         console.error('Error fetching fixed deposits:', error);
@@ -111,6 +104,25 @@ const FixedDeposit = () => {
 
     fetchDeposits();
   }, []);
+
+  const calculateCurrentValue = (deposit) => {
+    const createdDate = dayjs(deposit.created_date, 'DD-MM-YYYY');
+    const today = dayjs();
+    const daysDifference = today.diff(createdDate, 'day');
+    return (daysDifference * parseFloat(deposit.interest) * parseFloat(deposit.invested) / 36500) + parseFloat(deposit.invested);
+  };
+
+  const calculateDaysDifference = (deposit) => {
+    const createdDate = dayjs(deposit.created_date, 'DD-MM-YYYY');
+    const today = dayjs();
+    return today.diff(createdDate, 'day');
+  };
+
+  const calculateDaysToMature = (deposit) => {
+    const maturityDate = dayjs(deposit.maturity_date, 'DD-MM-YYYY');
+    const today = dayjs();
+    return maturityDate.diff(today, 'day');
+  };
 
   const handleAddDeposit = async () => {
     try {
@@ -122,7 +134,7 @@ const FixedDeposit = () => {
         maturity_date: newRow.maturityDate
       });
       setRows([...rows, { ...newRow, id: response.data.id, invested: parseFloat(newRow.invested) }]);
-      setNewRow({ sno: '',bank: '', createdDate: '', invested: '', interest: '', maturityDate: '' });
+      setNewRow({ sno: '', bank: '', createdDate: '', invested: '', interest: '', maturityDate: '' });
     } catch (error) {
       console.error('Error adding deposit:', error);
     }
@@ -165,6 +177,23 @@ const FixedDeposit = () => {
     setData({ ...data, [e.target.name]: e.target.value });
   };
 
+  // Sorting function
+  const handleRequestSort = (property) => {
+    const isAsc = orderBy === property && order === 'asc';
+    setOrder(isAsc ? 'desc' : 'asc');
+    setOrderBy(property);
+    const sortedRows = [...rows].sort((a, b) => {
+      if (b[property] < a[property]) {
+        return order === 'asc' ? -1 : 1;
+      }
+      if (b[property] > a[property]) {
+        return order === 'asc' ? 1 : -1;
+      }
+      return 0;
+    });
+    setRows(sortedRows);
+  };
+
   return (
     <DashboardContainer>
       <BackButton to="/banking">Back to Banking Dashboard</BackButton>
@@ -176,7 +205,7 @@ const FixedDeposit = () => {
         <StyledTextField label="Created Date" variant="outlined" size="small" name="createdDate" type="date" value={newRow.createdDate} onChange={(e) => handleInputChange(e, setNewRow, newRow)} InputLabelProps={{ shrink: true }} style={{ width: 'auto' }} />
         <StyledTextField label="Invested Amount" variant="outlined" size="small" name="invested" value={newRow.invested} onChange={(e) => handleInputChange(e, setNewRow, newRow)} />
         <StyledTextField label="Interest" variant="outlined" size="small" name="interest" value={newRow.interest} onChange={(e) => handleInputChange(e, setNewRow, newRow)} />
-        <StyledTextField label="Maturity Date" variant="outlined" size="small" type="date" name="maturityDate" value={newRow.maturityDate} onChange={(e) => handleInputChange(e, setNewRow, newRow)} InputLabelProps={{ shrink: true }} style={{ width: 'auto' }}/>
+        <StyledTextField label="Maturity Date" variant="outlined" size="small" type="date" name="maturityDate" value={newRow.maturityDate} onChange={(e) => handleInputChange(e, setNewRow, newRow)} InputLabelProps={{ shrink: true }} style={{ width: 'auto' }} />
         <Button variant="contained" color="primary" onClick={handleAddDeposit}>Add Deposit</Button>
       </AddForm>
 
@@ -184,53 +213,51 @@ const FixedDeposit = () => {
         <Table>
           <TableHead>
             <TableRow style={{ backgroundColor: '#1976d2' }}>
-              <TableCell style={{ color: '#fff' }}>S.No</TableCell>
-              <TableCell style={{ color: '#fff' }}>Bank</TableCell>
-              <TableCell style={{ color: '#fff' }}>Created Date</TableCell>
-              <TableCell style={{ color: '#fff' }}>Invested Amount</TableCell>
-              <TableCell style={{ color: '#fff' }}>Interest</TableCell>
-              <TableCell style={{ color: '#fff' }}>Maturity Date</TableCell>
-              <TableCell style={{ color: '#fff' }}>Current Value</TableCell> {/* Add Current Value column */}
-              <TableCell style={{ color: '#fff' }}>Days Difference</TableCell> {/* Add Days Difference column */}
-              <TableCell style={{ color: '#fff' }}>Days To Mature</TableCell> {/* Add Days Difference column */}
-              <TableCell style={{ color: '#fff' }}>Actions</TableCell>
+              <TableCell><TableSortLabel active={orderBy === 'sno'} direction={orderBy === 'sno' ? order : 'asc'} onClick={() => handleRequestSort('sno')}>S.No</TableSortLabel></TableCell>
+              <TableCell><TableSortLabel active={orderBy === 'bank'} direction={orderBy === 'bank' ? order : 'asc'} onClick={() => handleRequestSort('bank')}>Bank</TableSortLabel></TableCell>
+              <TableCell><TableSortLabel active={orderBy === 'createdDate'} direction={orderBy === 'createdDate' ? order : 'asc'} onClick={() => handleRequestSort('createdDate')}>Created Date</TableSortLabel></TableCell>
+              <TableCell><TableSortLabel active={orderBy === 'invested'} direction={orderBy === 'invested' ? order : 'asc'} onClick={() => handleRequestSort('invested')}>Invested Amount</TableSortLabel></TableCell>
+              <TableCell><TableSortLabel active={orderBy === 'interest'} direction={orderBy === 'interest' ? order : 'asc'} onClick={() => handleRequestSort('interest')}>Interest</TableSortLabel></TableCell>
+              <TableCell><TableSortLabel active={orderBy === 'maturityDate'} direction={orderBy === 'maturityDate' ? order : 'asc'} onClick={() => handleRequestSort('maturityDate')}>Maturity Date</TableSortLabel></TableCell>
+              <TableCell ><TableSortLabel active={orderBy === 'currentValue'} direction={orderBy === 'currentValue' ? order : 'asc'} onClick={() => handleRequestSort('currentValue')}>Current Value</TableSortLabel></TableCell> {/* Add Current Value column */}
+              <TableCell><TableSortLabel active={orderBy === 'daysDifference'} direction={orderBy === 'daysDifference' ? order : 'asc'} onClick={() => handleRequestSort('daysDifference')}>Days Difference</TableSortLabel></TableCell> {/* Add Days Difference column */}
+              <TableCell><TableSortLabel active={orderBy === 'daysToMature'} direction={orderBy === 'daysToMature' ? order : 'asc'} onClick={() => handleRequestSort('daysToMature')}>Days To Mature</TableSortLabel></TableCell> {/* Add Days Difference column */}
+              <TableCell align="center">Actions</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
             {rows.map((row, index) => (
               <TableRow key={row.id}>
-                {editRowIndex === index ? (
-                  <>
-                    <TableCell><StyledTextField size="small" value={editRowData.sno} name="sno" onChange={(e) => handleInputChange(e, setEditRowData, editRowData)} /></TableCell>
-                    <TableCell><StyledTextField size="small" value={editRowData.bank} name="bank" onChange={(e) => handleInputChange(e, setEditRowData, editRowData)} /></TableCell>
-                    <TableCell><StyledTextField size="small" value={editRowData.createdDate} name="createdDate" onChange={(e) => handleInputChange(e, setEditRowData, editRowData)} /></TableCell>
-                    <TableCell><StyledTextField size="small" value={editRowData.invested} name="invested" onChange={(e) => handleInputChange(e, setEditRowData, editRowData)} /></TableCell>
-                    <TableCell><StyledTextField size="small" value={editRowData.interest} name="interest" onChange={(e) => handleInputChange(e, setEditRowData, editRowData)} /></TableCell>
-                    <TableCell><StyledTextField size="small" value={editRowData.maturityDate} name="maturityDate" onChange={(e) => handleInputChange(e, setEditRowData, editRowData)} /></TableCell>
-                    <TableCell>{row.currentValue}</TableCell> {/* Show Current Value */}
-                    <TableCell>{row.daysDifference}</TableCell> {/* Show days Difference */}
-                    <TableCell>{row.daysToMature}</TableCell> {/* Show days Difference */}
-                    <TableCell>
-                      <IconButton onClick={handleSaveEdit}><SaveIcon /></IconButton>
-                    </TableCell>
-                  </>
-                ) : (
-                  <>
-                    <TableCell>{row.sno}</TableCell>
-                    <TableCell>{row.bank}</TableCell>
-                    <TableCell>{row.createdDate}</TableCell>
-                    <TableCell>{row.invested.toFixed(2)}</TableCell>
-                    <TableCell>{row.interest}</TableCell>
-                    <TableCell>{row.maturityDate}</TableCell>
-                    <TableCell>{row.currentValue}</TableCell> {/* Show Current Value */}
-                    <TableCell>{row.daysDifference}</TableCell> {/* Show days difference */}
-                    <TableCell>{row.daysToMature}</TableCell> {/* Show days difference */}
-                    <TableCell>
-                      <IconButton onClick={() => handleEdit(index)}><EditIcon /></IconButton>
-                      <IconButton onClick={() => handleDelete(row.id)}><DeleteIcon /></IconButton>
-                    </TableCell>
-                  </>
-                )}
+                <TableCell>{row.sno}</TableCell>
+                <TableCell>{row.bank}</TableCell>
+                <TableCell>{row.createdDate}</TableCell>
+                <TableCell>{row.invested.toFixed(2)}</TableCell>
+                <TableCell>{row.interest}</TableCell>
+                <TableCell>{row.maturityDate}</TableCell>
+                <TableCell>{row.currentValue}</TableCell> {/* Show Current Value */}
+                <TableCell>{row.daysDifference}</TableCell> {/* Show days Difference */}
+                <TableCell>{row.daysToMature}</TableCell> {/* Show days Difference */}
+                <TableCell align="center">
+                  {editRowIndex === index ? (
+                    <>
+                      <IconButton onClick={handleSaveEdit}>
+                        <SaveIcon />
+                      </IconButton>
+                      <IconButton onClick={() => { setEditRowIndex(null); setEditRowData(null); }}>
+                        <EditIcon />
+                      </IconButton>
+                    </>
+                  ) : (
+                    <>
+                      <IconButton onClick={() => handleEdit(index)}>
+                        <EditIcon />
+                      </IconButton>
+                      <IconButton onClick={() => handleDelete(row.id)}>
+                        <DeleteIcon />
+                      </IconButton>
+                    </>
+                  )}
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>
