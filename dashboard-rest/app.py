@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify
 from flask_mysqldb import MySQL
 from flask_cors import CORS
+from datetime import datetime
 
 app = Flask(__name__)
 CORS(app)
@@ -21,8 +22,8 @@ def get_fixed_deposits():
     cur = mysql.connection.cursor()
     cur.execute("SELECT * FROM fixed_deposits")
     results = cur.fetchall()
-    fixed_deposits = [{'id': row[0], 'bank': row[1], 'invested': row[2], 'interest': row[3], 'maturity_date': row[4].strftime('%d-%m-%Y'),
-                       'created_date': row[5].strftime('%d-%m-%Y')}
+    fixed_deposits = [{'id': row[0], 'bank': row[1], 'invested': row[2], 'interest': row[3], 'maturity_date': row[4].strftime('%Y-%m-%d'),
+                       'created_date': row[5].strftime('%Y-%m-%d')}
                       for row in results]
     cur.close()
     return jsonify(fixed_deposits)

@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { Delete as DeleteIcon, Edit as EditIcon, Save as SaveIcon } from '@mui/icons-material';
 import styled from 'styled-components';
 import api from '../api';
+import dayjs from 'dayjs'; // Use dayjs for date manipulation
 
 const DashboardContainer = styled.div`
   min-height: 100vh;
@@ -69,6 +70,9 @@ const FixedDeposit = () => {
   const [newRow, setNewRow] = useState({sno: '', bank: '', createdDate: '', invested: '', interest: '', maturityDate: '' });
   const [editRowIndex, setEditRowIndex] = useState(null);
   const [editRowData, setEditRowData] = useState(null);
+  const parseDate = (dateString) => {
+      return dayjs(dateString, 'DD-MM-YYYY'); // Modify this to match your date format
+  };
 
   useEffect(() => {
     const fetchDeposits = async () => {
@@ -77,15 +81,28 @@ const FixedDeposit = () => {
         console.log('API Response:', response.data);
 
         // Convert snake_case to camelCase and parse numeric values
-        const deposits = response.data.map(deposit => ({
-          id: deposit.id,
-          sno: deposit.id,
-          bank: deposit.bank,
-          createdDate: deposit.created_date,
-          invested: parseFloat(deposit.invested) || 0,
-          interest: deposit.interest,
-          maturityDate: deposit.maturity_date
-        }));
+        const deposits = response.data.map(deposit => {
+        const createdDate = parseDate(deposit.created_date); // Explicit date parsing
+        const today = parseDate(dayjs()); // Use current date for "Today" value
+        const maturityDate = parseDate(deposit.maturity_date);
+          // Calculate the current value using the formula
+          const daysDifference = today.diff(createdDate, 'day');
+          const currentValue = (daysDifference * parseFloat(deposit.interest) * parseFloat(deposit.invested) / 36500) + parseFloat(deposit.invested);
+          const daysToMature = maturityDate.diff(today, 'day');
+
+          return {
+            id: deposit.id,
+            sno: deposit.id,
+            bank: deposit.bank,
+            createdDate: deposit.created_date,
+            invested: parseFloat(deposit.invested) || 0,
+            interest: deposit.interest,
+            maturityDate: deposit.maturity_date,
+            currentValue: currentValue.toFixed(2), // Store calculated current value
+            daysDifference: daysDifference,
+            daysToMature: daysToMature
+          };
+        });
         setRows(deposits);
       } catch (error) {
         console.error('Error fetching fixed deposits:', error);
@@ -173,6 +190,9 @@ const FixedDeposit = () => {
               <TableCell style={{ color: '#fff' }}>Invested Amount</TableCell>
               <TableCell style={{ color: '#fff' }}>Interest</TableCell>
               <TableCell style={{ color: '#fff' }}>Maturity Date</TableCell>
+              <TableCell style={{ color: '#fff' }}>Current Value</TableCell> {/* Add Current Value column */}
+              <TableCell style={{ color: '#fff' }}>Days Difference</TableCell> {/* Add Days Difference column */}
+              <TableCell style={{ color: '#fff' }}>Days To Mature</TableCell> {/* Add Days Difference column */}
               <TableCell style={{ color: '#fff' }}>Actions</TableCell>
             </TableRow>
           </TableHead>
@@ -187,6 +207,9 @@ const FixedDeposit = () => {
                     <TableCell><StyledTextField size="small" value={editRowData.invested} name="invested" onChange={(e) => handleInputChange(e, setEditRowData, editRowData)} /></TableCell>
                     <TableCell><StyledTextField size="small" value={editRowData.interest} name="interest" onChange={(e) => handleInputChange(e, setEditRowData, editRowData)} /></TableCell>
                     <TableCell><StyledTextField size="small" value={editRowData.maturityDate} name="maturityDate" onChange={(e) => handleInputChange(e, setEditRowData, editRowData)} /></TableCell>
+                    <TableCell>{row.currentValue}</TableCell> {/* Show Current Value */}
+                    <TableCell>{row.daysDifference}</TableCell> {/* Show days Difference */}
+                    <TableCell>{row.daysToMature}</TableCell> {/* Show days Difference */}
                     <TableCell>
                       <IconButton onClick={handleSaveEdit}><SaveIcon /></IconButton>
                     </TableCell>
@@ -199,6 +222,9 @@ const FixedDeposit = () => {
                     <TableCell>{row.invested.toFixed(2)}</TableCell>
                     <TableCell>{row.interest}</TableCell>
                     <TableCell>{row.maturityDate}</TableCell>
+                    <TableCell>{row.currentValue}</TableCell> {/* Show Current Value */}
+                    <TableCell>{row.daysDifference}</TableCell> {/* Show days difference */}
+                    <TableCell>{row.daysToMature}</TableCell> {/* Show days difference */}
                     <TableCell>
                       <IconButton onClick={() => handleEdit(index)}><EditIcon /></IconButton>
                       <IconButton onClick={() => handleDelete(row.id)}><DeleteIcon /></IconButton>
