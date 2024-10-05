@@ -70,9 +70,11 @@ const FixedDeposit = () => {
   const [newRow, setNewRow] = useState({sno: '', bank: '', createdDate: '', invested: '', interest: '', maturityDate: '' });
   const [editRowIndex, setEditRowIndex] = useState(null);
   const [editRowData, setEditRowData] = useState(null);
+
   const parseDate = (dateString) => {
       return dayjs(dateString, 'DD-MM-YYYY'); // Modify this to match your date format
   };
+
   // State for sorting
   const [order, setOrder] = useState('asc');
   const [orderBy, setOrderBy] = useState('sno');
@@ -122,6 +124,11 @@ const FixedDeposit = () => {
     const maturityDate = dayjs(deposit.maturity_date, 'DD-MM-YYYY');
     const today = dayjs();
     return maturityDate.diff(today, 'day');
+  };
+
+  // New function to calculate total current value
+  const calculateTotalCurrentValue = () => {
+    return rows.reduce((total, row) => total + parseFloat(row.currentValue), 0).toFixed(2);
   };
 
   const handleAddDeposit = async () => {
@@ -198,6 +205,8 @@ const FixedDeposit = () => {
     <DashboardContainer>
       <BackButton to="/banking">Back to Banking Dashboard</BackButton>
       <Header>Fixed Deposits</Header>
+
+      <TotalAmount>Total Current Value: ₹{calculateTotalCurrentValue()}</TotalAmount> {/* Display Total Current Value */}
 
       <AddForm>
         <StyledTextField label="S.No" variant="outlined" size="small" name="sno" value={newRow.sno} onChange={(e) => handleInputChange(e, setNewRow, newRow)} />
