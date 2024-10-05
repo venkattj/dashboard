@@ -58,8 +58,10 @@ function BankingDashboard() {
         </Grid>
         <Grid item xs={12} sm={6} md={4}>
           <Widget elevation={3}>
+            <MuiLink component={Link} to="/banking/summary" style={{ color: 'white', textDecoration: 'none' }}>
             <h2>Summary</h2>
             <p>A summary of all your banking transactions and accounts.</p>
+            </MuiLink>
           </Widget>
         </Grid>
       </Grid>

@@ -5,6 +5,10 @@ import styled from 'styled-components';
 import BankingDashboard from './BankComponent/BankingDashboard'; // Import the BankingDashboard component
 import SavingsAccounts from './BankComponent/SavingsAccounts'; // Import the SavingsAccounts component
 import FixedDeposits from './BankComponent/FixedDeposits'; // Import the FixedDeposits component
+import SummaryPage from './BankComponent/SummaryPage'; // Import the new summary page
+
+import ChitsPage from './ChitComponent/ChitsPage'; // Import the new ChitsPage component
+import StandardChits from './ChitComponent/StandardChits'; // Import the new ChitsPage component
 
 const DashboardContainer = styled.div`
   min-height: 100vh;
@@ -57,7 +61,7 @@ function App() {
                 </Widget>
               </Grid>
               <Grid item xs={12} sm={6} md={4}>
-                <Widget elevation={3}>
+                <Widget component={Link} to="/chits" elevation={3}>
                   <h2>Chits</h2>
                   <p>Monitor your chit fund contributions and returns.</p>
                 </Widget>
@@ -78,6 +82,11 @@ function App() {
         {/* Savings Accounts route */}
         <Route path="/banking/savings-accounts" element={<SavingsAccounts />} />
         <Route path="/banking/fixed-deposits" element={<FixedDeposits />} />
+        <Route path="/banking/summary" element={<SummaryPage />} /> {/* Add route for summary */}
+
+        <Route path="/chits" element={<ChitsPage />} /> {/* Add the Chits page route */}
+        <Route path="/chits/standard" element={<StandardChits />} /> {/* Implement StandardChits component */}
+
 
       </Routes>
     </Router>
