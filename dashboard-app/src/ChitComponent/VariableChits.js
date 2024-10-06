@@ -253,17 +253,19 @@ const VariableChits = () => {
     return (emisPaid / duration) * value;
   };
 
+   const totalCurrentValue = variableChits.reduce((total, chit) => total + calculateCurrentValue(chit), 0);
+
 
 
   return (
     <ChitContainer>
-      <Button variant="contained" color="secondary" onClick={() => window.history.back()}>
-        Back
-      </Button>
       <Header>Variable Chits</Header>
       <Button variant="contained" color="primary" onClick={handleOpen}>
         Add New Variable Chit
       </Button>
+      <Button variant="contained" color="secondary" onClick={() => window.history.back()} style={{ marginLeft: '20px' }}>
+              Back to Chits Dashboard
+            </Button>
       <Grid container spacing={3} style={{ marginTop: '20px' }}>
         {variableChits.map((chit) => (
           <Grid item xs={12} sm={6} md={4} key={chit.chit_id}>
@@ -348,6 +350,10 @@ const VariableChits = () => {
           <Button onClick={handleSubmitEmi}>{isEditingEmi ? 'Update' : 'Save'}</Button>
         </DialogActions>
       </Dialog>
+      {/* Total Current Value Display */}
+            <div style={{ textAlign: 'center', marginTop: '20px', color: 'white' }}>
+              <h2>Total Value: ₹{totalCurrentValue}</h2>
+            </div>
 
       <Snackbar open={notification.open} autoHideDuration={6000} onClose={handleNotificationClose}>
         <Alert onClose={handleNotificationClose} severity={notification.severity}>
