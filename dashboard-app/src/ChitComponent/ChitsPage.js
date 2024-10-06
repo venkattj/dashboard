@@ -1,7 +1,7 @@
 import React from 'react';
-import { Grid, Paper } from '@mui/material';
+import { Grid, Paper, Button } from '@mui/material';
 import styled from 'styled-components';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom'; // Import useNavigate
 
 const ChitsContainer = styled.div`
   min-height: 100vh;
@@ -30,9 +30,18 @@ const Header = styled.h1`
 `;
 
 const ChitsPage = () => {
+  const navigate = useNavigate(); // Use useNavigate for navigation
+
+  const handleBack = () => {
+    navigate(-1); // Go back to the previous page
+  };
+
   return (
     <ChitsContainer>
       <Header>Chits Dashboard</Header>
+      <Button variant="outlined" color="secondary" onClick={handleBack} style={{ marginBottom: '20px' }}>
+        Back to Main Dashboard
+      </Button>
       <Grid container spacing={3}>
         <Grid item xs={12} sm={6} md={4}>
           <Widget elevation={3}>

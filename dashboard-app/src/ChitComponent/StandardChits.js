@@ -13,6 +13,8 @@ import {
 import styled from 'styled-components';
 import api from '../api'; // Import your API module for making requests
 import MuiAlert from '@mui/material/Alert';
+import moment from 'moment'; // Import moment.js for date calculations
+import { useNavigate } from 'react-router-dom'; // Update this import
 
 const ChitContainer = styled.div`
   min-height: 100vh;
@@ -62,7 +64,12 @@ const StandardChits = () => {
     emi: '',
     maturity: '',
     started: '',
+    emiPaid: '',      // New field
+    nextEmiDate: '',  // New field
+    currentValue: '',  // New field
   });
+
+  const navigate = useNavigate(); // Use useNavigate instead of useHistory
 
   useEffect(() => {
     fetchChits();
@@ -71,7 +78,30 @@ const StandardChits = () => {
   const fetchChits = async () => {
     try {
       const response = await api.get('/api/chits');
-      setChits(response.data);
+      const updatedChits = response.data.map(chit => {
+        const currentDate = moment();
+        const startedDate = moment(chit.started);
+        const durationMonths = parseInt(chit.duration, 10);
+
+        // Calculate the number of EMIs paid
+        const monthsDiff = currentDate.diff(startedDate, 'months');
+        const emIsPaid = Math.min(monthsDiff, durationMonths) + 1; // Ensure it doesn't exceed duration
+
+        // Calculate the next EMI date
+        const nextEmiDate = startedDate.add(emIsPaid + 1, 'months').format('YYYY-MM-DD');
+
+        // Calculate current value
+        const currentValue = chit.value * emIsPaid / chit.duration;
+
+        return {
+          ...chit,
+          emiPaid: emIsPaid,
+          nextEmiDate,
+          currentValue: currentValue > 0 ? currentValue : 0, // Ensure current value doesn't go below zero
+        };
+      });
+
+      setChits(updatedChits);
     } catch (error) {
       console.error('Error fetching chits:', error);
     }
@@ -86,6 +116,9 @@ const StandardChits = () => {
       emi: '',
       maturity: '',
       started: '',
+      emiPaid: '',       // Reset new field
+      nextEmiDate: '',   // Reset new field
+      currentValue: '',   // Reset new field
     });
     setIsEditing(false);
   };
@@ -101,6 +134,9 @@ const StandardChits = () => {
       emi: chit.emi || '',
       maturity: chit.maturity,
       started: chit.started,
+      emiPaid: chit.emiPaid || '',       // Set new field
+      nextEmiDate: chit.nextEmiDate || '',  // Set new field
+      currentValue: chit.currentValue || '', // Set new field
     });
   };
 
@@ -144,11 +180,21 @@ const StandardChits = () => {
     setNotification({ ...notification, open: false });
   };
 
+  // Calculate total current value
+  const totalCurrentValue = chits.reduce((total, chit) => total + chit.currentValue, 0);
+
+  const handleBack = () => {
+    navigate(-1); // Navigate back to the previous page
+  };
+
   return (
     <ChitContainer>
       <Header>Standard Chits</Header>
       <Button variant="contained" color="primary" onClick={handleOpen}>
         Add New Chit
+      </Button>
+      <Button variant="contained" color="secondary" onClick={handleBack} style={{ marginLeft: '20px' }}>
+        Back to Chits Dashboard
       </Button>
       <Grid container spacing={3} style={{ marginTop: '20px' }}>
         {chits.map((chit) => (
@@ -158,6 +204,9 @@ const StandardChits = () => {
               <p>Value: ₹{chit.value}</p>
               <p>Duration: {chit.duration} months</p>
               <p>EMI: ₹{chit.emi || 'N/A'}</p>
+              <p>EMIs Paid: {chit.emiPaid || 'N/A'}</p>      {/* New field */}
+              <p>Next EMI Date: {chit.nextEmiDate || 'N/A'}</p>  {/* New field */}
+              <p>Current Value: ₹{chit.currentValue || 'N/A'}</p>  {/* New field */}
               <p>Maturity Date: {chit.maturity}</p>
               <p>Started On: {chit.started}</p>
               <Button variant="outlined" color="secondary" onClick={() => handleEdit(chit)}>
@@ -170,6 +219,11 @@ const StandardChits = () => {
           </Grid>
         ))}
       </Grid>
+
+      {/* Total Current Value Display */}
+      <div style={{ textAlign: 'center', marginTop: '20px', color: 'white' }}>
+        <h2>Total Value: ₹{totalCurrentValue}</h2>
+      </div>
 
       <Dialog open={open} onClose={handleClose}>
         <DialogTitle>{isEditing ? 'Edit Chit' : 'Add New Chit'}</DialogTitle>
@@ -198,7 +252,7 @@ const StandardChits = () => {
             </ChitItem>
             <ChitItem>
               <TextField
-                label="Duration (Months)"
+                label="Duration (months)"
                 name="duration"
                 type="number"
                 value={formData.duration}
