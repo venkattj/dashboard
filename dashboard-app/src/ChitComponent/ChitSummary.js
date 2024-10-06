@@ -5,6 +5,7 @@ import { Paper, Typography, Button } from '@mui/material';
 import styled from 'styled-components';
 import { useNavigate } from 'react-router-dom';
 import api from '../api'; // Ensure this points to your API module
+import moment from 'moment'; // Import moment.js for date calculations
 
 const SummaryContainer = styled.div`
   min-height: 100vh;
@@ -35,11 +36,29 @@ const ChitSummary = () => {
   useEffect(() => {
     const fetchChitTotals = async () => {
       try {
-        const variableChitsResponse = await api.get('/api/variable_chits');
-        const standardChitsResponse = await api.get('/api/standard_chits');
+        const calculateCurrentValue = (chit) => {
+            const value = chit.value ?? 0;
+            const duration = chit.duration ?? 1; // Assuming the duration should never be 0
+            const emisPaid = chit.emis ? chit.emis.length : 0; // Get the number of EMIs paid
 
-        const totalVariable = variableChitsResponse.data.reduce((total, chit) => total + Number(chit.value ?? 0), 0);
-        const totalStandard = standardChitsResponse.data.reduce((total, chit) => total + Number(chit.value ?? 0), 0);
+            return (emisPaid / duration) * value;
+          };
+          const calculateStandardCurrentValue = (chit) => {
+              const currentDate = moment();
+              const startedDate = moment(chit.started);
+              const durationMonths = parseInt(chit.duration, 10);
+
+              // Calculate the number of EMIs paid
+              const monthsDiff = currentDate.diff(startedDate, 'months');
+              const emIsPaid = Math.min(monthsDiff, durationMonths) + 1; // Ensure it doesn't exceed duration
+
+              return chit.value * emIsPaid / chit.duration;
+         };
+        const variableChitsResponse = await api.get('/api/variable_chits');
+        const standardChitsResponse = await api.get('/api/chits');
+
+        const totalVariable = variableChitsResponse.data.reduce((total, chit) => total + calculateCurrentValue(chit), 0);
+        const totalStandard = standardChitsResponse.data.reduce((total, chit) => total + calculateStandardCurrentValue(chit), 0);
 
         setTotalVariableChitAmount(totalVariable);
         setTotalStandardChitAmount(totalStandard);
