@@ -149,7 +149,7 @@ const VariableChits = () => {
     e.preventDefault();
     try {
       if (isEditing) {
-        await api.put(`/api/variable_chits/${currentChit.chit_id}`, formData);
+        await api.put(`/api/chits/${currentChit.chit_id}`, formData);
         setNotification({ open: true, message: 'Variable chit updated successfully!', severity: 'success' });
       } else {
         await api.post('/api/chits', formData); // Adjust endpoint if necessary
@@ -274,6 +274,8 @@ const VariableChits = () => {
               <p>Current Value: ₹{calculateCurrentValue(chit).toLocaleString()}</p>
               <p>Next EMI Date: {getNextEmiDate(chit.emis)}</p>
               <p>Duration: {chit.duration}</p>
+              <p>Maturity Date: {chit.maturity}</p>
+              <p>Started On: {chit.started}</p>
               <Button onClick={() => handleEdit(chit)}>Edit</Button>
               <Button onClick={() => handleDelete(chit.chit_id)}>Delete</Button>
               <Button onClick={() => handleAddEmi(chit)}>Add EMI</Button>

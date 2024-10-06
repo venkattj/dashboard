@@ -99,8 +99,8 @@ def get_variable_chits():
                 'organisation': chit[1],
                 'value': chit[2],
                 'duration': chit[3],
-                'maturity': chit[5],
-                'started': chit[6],
+                'maturity': chit[5].strftime('%Y-%m-%d'),
+                'started': chit[6].strftime('%Y-%m-%d'),
                 'emis': [
                     {
                         'id': emi[0],
