@@ -52,14 +52,14 @@ function App() {
               </Grid>
               <Grid item xs={12} sm={6} md={4}>
                 <Widget elevation={3}>
-                  <h2>Mutual Funds</h2>
-                  <p>Overview of your mutual fund investments.</p>
+                  <h2>Home Loan</h2>
+                  <p>Track your home loan details and repayments.</p>
                 </Widget>
               </Grid>
               <Grid item xs={12} sm={6} md={4}>
                 <Widget elevation={3}>
-                  <h2>Stocks</h2>
-                  <p>Track the performance of your stock portfolio.</p>
+                  <h2>Money Invested</h2>
+                  <p>Overview of all the money you've invested across different assets.</p>
                 </Widget>
               </Grid>
               <Grid item xs={12} sm={6} md={4}>
