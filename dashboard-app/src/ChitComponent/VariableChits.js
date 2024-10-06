@@ -164,7 +164,7 @@ const VariableChits = () => {
 
   const handleDelete = async (chit_id) => {
     try {
-      await api.delete(`/api/variable_chits/${chit_id}`);
+      await api.delete(`/api/chits/${chit_id}`);
       setNotification({ open: true, message: 'Variable chit deleted successfully!', severity: 'success' });
       fetchVariableChits();
     } catch (error) {
@@ -172,7 +172,6 @@ const VariableChits = () => {
     }
   };
 
-  // EMI CRUD Handlers
   const handleAddEmi = (chit) => {
     setCurrentChit(chit);
     setOpenEmi(true);
@@ -227,8 +226,40 @@ const VariableChits = () => {
     setNotification({ ...notification, open: false });
   };
 
+  const calculateTotalEmiPaid = (emis) => {
+      return emis.reduce((total, emi) => total + Number(emi.amount ?? 0), 0);
+  };
+
+
+  const getNextEmiDate = (emis) => {
+    // Sort the EMIs by date to get the most recent one
+    const sortedEmis = emis.sort((a, b) => moment(a.emi_date).diff(moment(b.emi_date)));
+    const lastEmi = sortedEmis[sortedEmis.length - 1];
+
+    // If there are EMIs, return the last EMI date + 1 month, else return a default message
+    if (lastEmi) {
+      return moment(lastEmi.emi_date).add(1, 'month').format('DD-MM-YYYY');
+    } else {
+      return 'No EMIs Paid';
+    }
+  };
+
+
+  const calculateCurrentValue = (chit) => {
+    const value = chit.value ?? 0;
+    const duration = chit.duration ?? 1; // Assuming the duration should never be 0
+    const emisPaid = chit.emis ? chit.emis.length : 0; // Get the number of EMIs paid
+
+    return (emisPaid / duration) * value;
+  };
+
+
+
   return (
     <ChitContainer>
+      <Button variant="contained" color="secondary" onClick={() => window.history.back()}>
+        Back
+      </Button>
       <Header>Variable Chits</Header>
       <Button variant="contained" color="primary" onClick={handleOpen}>
         Add New Variable Chit
@@ -238,121 +269,85 @@ const VariableChits = () => {
           <Grid item xs={12} sm={6} md={4} key={chit.chit_id}>
             <Widget>
               <h2>{chit.organisation}</h2>
-              <p>Value: ₹{chit.value.toLocaleString()}</p>
-              <p>Duration: {chit.duration} months</p>
-              <p>Maturity Date: {moment(chit.maturity).format('DD-MM-YYYY')}</p>
-              <p>Started On: {moment(chit.started).format('DD-MM-YYYY')}</p>
-              <Button variant="outlined" color="secondary" onClick={() => handleEdit(chit)}>
-                Edit
-              </Button>
-              <Button variant="outlined" color="error" onClick={() => handleDelete(chit.chit_id)}>
-                Delete
-              </Button>
+              <p>Value: ₹{(chit.value ?? 0).toLocaleString()}</p>
+              <p>Total Amount Paid: ₹{calculateTotalEmiPaid(chit.emis).toLocaleString()}</p>
+              <p>Current Value: ₹{calculateCurrentValue(chit).toLocaleString()}</p>
+              <p>Next EMI Date: {getNextEmiDate(chit.emis)}</p>
+              <p>Duration: {chit.duration}</p>
+              <Button onClick={() => handleEdit(chit)}>Edit</Button>
+              <Button onClick={() => handleDelete(chit.chit_id)}>Delete</Button>
+              <Button onClick={() => handleAddEmi(chit)}>Add EMI</Button>
               <EmiTable>
-                <h3>EMIs</h3>
-                {chit.emis.length > 0 ? (
-                  chit.emis.map((emi) => (
-                    <EmiRow key={emi.emi_no}>
-                      <span>EMI {emi.emi_no}: ₹{emi.amount}</span>
-                      <span>Date: {moment(emi.emi_date).format('DD-MM-YYYY')}</span>
-                      <Button variant="outlined" onClick={() => handleEditEmi(chit, emi)}>
-                        Edit EMI
-                      </Button>
-                      <Button variant="outlined" color="error" onClick={() => handleDeleteEmi(chit.chit_id, emi.id)}>
-                        Delete EMI
-                      </Button>
-                    </EmiRow>
-                  ))
-                ) : (
-                  <p>No EMIs found</p>
-                )}
+                <h3>EMI Records:</h3>
+                {chit.emis.map((emi) => (
+                  <EmiRow key={emi.id}>
+                    <span>EMI {emi.emi_no}:</span>
+                    <span>₹{(emi.amount ?? 0).toLocaleString()}</span>
+                    <span>{moment(emi.emi_date).format('DD-MM-YYYY')}</span>
+                    <Button onClick={() => handleEditEmi(chit, emi)}>Edit</Button>
+                    <Button onClick={() => handleDeleteEmi(chit.chit_id, emi.id)}>Delete</Button>
+                  </EmiRow>
+                ))}
               </EmiTable>
-              <Button variant="outlined" color="primary" onClick={() => handleAddEmi(chit)}>
-                Add EMI
-              </Button>
             </Widget>
           </Grid>
         ))}
       </Grid>
 
       {/* Chit Dialog */}
-      <Dialog open={open} onClose={handleClose}>
+      <Dialog open={open} onClose={handleClose} fullWidth>
         <DialogTitle>{isEditing ? 'Edit Variable Chit' : 'Add Variable Chit'}</DialogTitle>
         <DialogContent>
           <ChitForm>
             <ChitItem>
-              <TextField
-                label="Organisation"
-                name="organisation"
-                value={formData.organisation}
-                onChange={handleChange}
-                fullWidth
-              />
+              <TextField label="Organisation" name="organisation" value={formData.organisation} onChange={handleChange} fullWidth />
             </ChitItem>
             <ChitItem>
-              <TextField label="Value" name="value" type="number" value={formData.value} onChange={handleChange} fullWidth />
+              <TextField label="Value" name="value" value={formData.value} onChange={handleChange} fullWidth />
             </ChitItem>
             <ChitItem>
-              <TextField label="Duration" name="duration" type="number" value={formData.duration} onChange={handleChange} fullWidth />
+              <TextField label="Duration" name="duration" value={formData.duration} onChange={handleChange} fullWidth />
             </ChitItem>
             <ChitItem>
-              <TextField label="Maturity" name="maturity" type="date" value={formData.maturity} onChange={handleChange} fullWidth />
+              <TextField label="EMI" name="emi" value={formData.emi} onChange={handleChange} fullWidth />
             </ChitItem>
             <ChitItem>
-              <TextField label="Started" name="started" type="date" value={formData.started} onChange={handleChange} fullWidth />
+              <TextField label="Maturity Date" name="maturity" value={formData.maturity} onChange={handleChange} fullWidth />
+            </ChitItem>
+            <ChitItem>
+              <TextField label="Start Date" name="started" value={formData.started} onChange={handleChange} fullWidth />
             </ChitItem>
           </ChitForm>
         </DialogContent>
         <DialogActions>
-          <Button onClick={handleClose} color="secondary">
-            Cancel
-          </Button>
-          <Button onClick={handleSubmit} color="primary">
-            {isEditing ? 'Update' : 'Add'}
-          </Button>
+          <Button onClick={handleClose}>Cancel</Button>
+          <Button onClick={handleSubmit}>{isEditing ? 'Update' : 'Save'}</Button>
         </DialogActions>
       </Dialog>
 
       {/* EMI Dialog */}
-      <Dialog open={openEmi} onClose={handleCloseEmi}>
+      <Dialog open={openEmi} onClose={handleCloseEmi} fullWidth>
         <DialogTitle>{isEditingEmi ? 'Edit EMI' : 'Add EMI'}</DialogTitle>
         <DialogContent>
           <ChitForm>
             <ChitItem>
-              <TextField
-                label="EMI Number"
-                name="emi_no"
-                type="number"
-                value={emiFormData.emi_no}
-                onChange={handleEmiChange}
-                fullWidth
-              />
+              <TextField label="EMI No" name="emi_no" value={emiFormData.emi_no} onChange={handleEmiChange} fullWidth />
             </ChitItem>
             <ChitItem>
-              <TextField label="Amount" name="amount" type="number" value={emiFormData.amount} onChange={handleEmiChange} fullWidth />
+              <TextField label="Amount" name="amount" value={emiFormData.amount} onChange={handleEmiChange} fullWidth />
             </ChitItem>
             <ChitItem>
-              <TextField label="EMI Date" name="emi_date" type="date" value={emiFormData.emi_date} onChange={handleEmiChange} fullWidth />
+              <TextField label="EMI Date" type="date" name="emi_date" value={emiFormData.emi_date} onChange={handleEmiChange} fullWidth />
             </ChitItem>
           </ChitForm>
         </DialogContent>
         <DialogActions>
-          <Button onClick={handleCloseEmi} color="secondary">
-            Cancel
-          </Button>
-          <Button onClick={handleSubmitEmi} color="primary">
-            {isEditingEmi ? 'Update' : 'Add'}
-          </Button>
+          <Button onClick={handleCloseEmi}>Cancel</Button>
+          <Button onClick={handleSubmitEmi}>{isEditingEmi ? 'Update' : 'Save'}</Button>
         </DialogActions>
       </Dialog>
 
-      {/* Snackbar Notification */}
-      <Snackbar
-        open={notification.open}
-        autoHideDuration={6000}
-        onClose={handleNotificationClose}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-      >
+      <Snackbar open={notification.open} autoHideDuration={6000} onClose={handleNotificationClose}>
         <Alert onClose={handleNotificationClose} severity={notification.severity}>
           {notification.message}
         </Alert>

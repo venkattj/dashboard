@@ -103,6 +103,7 @@ def get_variable_chits():
                 'started': chit[6],
                 'emis': [
                     {
+                        'id': emi[0],
                         'emi_no': emi[2],
                         'amount': emi[3],
                         'emi_date': emi[4]
