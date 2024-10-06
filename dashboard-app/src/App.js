@@ -10,6 +10,7 @@ import SummaryPage from './BankComponent/SummaryPage'; // Import the new summary
 import ChitsPage from './ChitComponent/ChitsPage'; // Import the new ChitsPage component
 import StandardChits from './ChitComponent/StandardChits'; // Import the new ChitsPage component
 import VariableChits from './ChitComponent/VariableChits'; // Import the new ChitsPage component
+import ChitSummary from './ChitComponent/ChitSummary'; // Import the new summary page
 
 const DashboardContainer = styled.div`
   min-height: 100vh;
@@ -88,6 +89,7 @@ function App() {
         <Route path="/chits" element={<ChitsPage />} /> {/* Add the Chits page route */}
         <Route path="/chits/standard" element={<StandardChits />} /> {/* Implement StandardChits component */}
         <Route path="/chits/variable" element={<VariableChits />} /> {/* Implement VariableChits component */}
+        <Route path="/chits/summary" element={<ChitSummary />} /> {/* Implement ChitSummary component */}
 
 
       </Routes>
