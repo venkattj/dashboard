@@ -1,9 +1,9 @@
-from flask import Flask, request, jsonify
+from flask import Flask, send_from_directory,request, jsonify
 from flask_mysqldb import MySQL
 from flask_cors import CORS
 from datetime import datetime
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder='../dashboard-app/build')
 CORS(app)
 
 # MySQL configuration
@@ -13,6 +13,25 @@ app.config['MYSQL_PASSWORD'] = 'teja@4795'
 app.config['MYSQL_DB'] = 'teja'
 
 mysql = MySQL(app)
+
+@app.route('/')
+def serve():
+    return send_from_directory(app.static_folder, 'index.html')
+
+# Serve static files or index.html for non-API routes
+@app.route('/<path:path>')
+def serve_static(path):
+    # If the requested path is for static files
+    if path.startswith('api'):
+        return jsonify({"error": "API not found"}), 404  # Handle API paths
+    try:
+        # Attempt to serve the requested static file
+        return send_from_directory(app.static_folder, path)
+    except:
+        # If the file doesn't exist, serve index.html
+        return send_from_directory(app.static_folder, 'index.html')
+
+
 # varaible chits
 
 @app.route('/api/variable_chits/<int:chit_id>/emis', methods=['POST'])
