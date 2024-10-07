@@ -1,8 +1,7 @@
 # app.py
-from flask import Flask, send_from_directory, jsonify
+from flask import Flask
 from flask_mysqldb import MySQL
 from flask_cors import CORS
-import subprocess
 from config import Config
 from routes import variable_chits, chits, fixed_deposits, savings, home_loans, db_routes, ui_routes
 
