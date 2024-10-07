@@ -11,6 +11,7 @@ import ChitsPage from './ChitComponent/ChitsPage'; // Import the new ChitsPage c
 import StandardChits from './ChitComponent/StandardChits'; // Import the new ChitsPage component
 import VariableChits from './ChitComponent/VariableChits'; // Import the new ChitsPage component
 import ChitSummary from './ChitComponent/ChitSummary'; // Import the new summary page
+import HomeLoan from './LoanComponent/HomeLoan'; // Import the HomeLoan component
 
 const DashboardContainer = styled.div`
   min-height: 100vh;
@@ -51,9 +52,9 @@ function App() {
                 </Widget>
               </Grid>
               <Grid item xs={12} sm={6} md={4}>
-                <Widget elevation={3}>
+                <Widget component={Link} to="/home-loan" elevation={3}>
                   <h2>Home Loan</h2>
-                  <p>Track your home loan details and repayments.</p>
+                  <p>Details about your home loan status and repayments.</p>
                 </Widget>
               </Grid>
               <Grid item xs={12} sm={6} md={4}>
@@ -90,7 +91,7 @@ function App() {
         <Route path="/chits/standard" element={<StandardChits />} /> {/* Implement StandardChits component */}
         <Route path="/chits/variable" element={<VariableChits />} /> {/* Implement VariableChits component */}
         <Route path="/chits/summary" element={<ChitSummary />} /> {/* Implement ChitSummary component */}
-
+        <Route path="/home-loan" element={<HomeLoan />} />
 
       </Routes>
     </Router>
