@@ -1,9 +1,8 @@
-# app.py
 from flask import Flask
 from flask_mysqldb import MySQL
 from flask_cors import CORS
 from config import Config
-from routes import variable_chits, chits, fixed_deposits, savings, home_loans, db_routes, ui_routes
+from routes import variable_chits, chits, fixed_deposits, savings, home_loans, db_routes, ui_routes, investments  # Import the new investments blueprint
 
 app = Flask(__name__, static_folder='../dashboard-app/build')
 app.config.from_object(Config)
@@ -19,6 +18,7 @@ app.register_blueprint(savings.bp)
 app.register_blueprint(home_loans.bp)
 app.register_blueprint(db_routes.bp)
 app.register_blueprint(ui_routes.bp)
+app.register_blueprint(investments.bp)  # Register the new blueprint for investments
 
 if __name__ == '__main__':
     app.run(debug=True)
