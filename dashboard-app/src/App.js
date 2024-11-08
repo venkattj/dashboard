@@ -17,6 +17,13 @@ import HomeIcon from '@mui/icons-material/Home';
 import SavingsIcon from '@mui/icons-material/Savings';
 import LocalAtmIcon from '@mui/icons-material/LocalAtm';
 import SummaryIcon from '@mui/icons-material/Summarize';
+import LoansDashboard from './LoanComponent/LoansDashboard';
+import LoansGiven from './LoanComponent/LoansGiven';
+import LoansTaken from './LoanComponent/LoansTaken';
+import AttachMoneyIcon from '@mui/icons-material/AttachMoney';
+import MoneyOffIcon from '@mui/icons-material/MoneyOff';
+import EarningsPage from './EarningComponent/EarningsPage';
+import SpendingPage from './SpendingComponent/SpendingPage';
 
 const DashboardContainer = styled.div`
   min-height: 100vh;
@@ -82,10 +89,10 @@ function App() {
               </Grid>
               <Grid item xs={12} sm={6} md={4} lg={3}>
                 <Tooltip title="Details about your home loan status and repayments" arrow>
-                  <Widget component={Link} to="/home-loan" elevation={3} aria-label="Home Loan Section">
+                  <Widget component={Link} to="/loans" elevation={3} aria-label="Home Loan Section">
                     <HomeIcon style={{ fontSize: '3rem', color: '#fff' }} />
-                    <h2>Home Loan</h2>
-                    <p>View home loan status and repayments.</p>
+                    <h2>Loans</h2>
+                    <p>View loan status and repayments.</p>
                   </Widget>
                 </Tooltip>
               </Grid>
@@ -108,18 +115,35 @@ function App() {
                 </Tooltip>
               </Grid>
               <Grid item xs={12} sm={6} md={4} lg={3}>
-                <Tooltip title="Get a consolidated view of your financial assets" arrow>
-                  <Widget component={Link} to="/banking/summary" elevation={3} aria-label="Summary Section">
-                    <SummaryIcon style={{ fontSize: '3rem', color: '#fff' }} />
-                    <h2>Summary</h2>
-                    <p>Consolidated view of financial assets.</p>
+                <Tooltip title="Track your earnings" arrow>
+                  <Widget component={Link} to="/earnings" elevation={3} aria-label="Earnings Section">
+                    <AttachMoneyIcon style={{ fontSize: '3rem', color: '#fff' }} />
+                    <h2>Earnings</h2>
+                    <p>Track your earnings and income sources.</p>
                   </Widget>
                 </Tooltip>
+              </Grid>
+              <Grid item xs={12} sm={6} md={4} lg={3}>
+                <Tooltip title="Monitor your spending habits" arrow>
+                  <Widget component={Link} to="/spending" elevation={3} aria-label="Spending Section">
+                    <MoneyOffIcon style={{ fontSize: '3rem', color: '#fff' }} />
+                    <h2>Spending</h2>
+                    <p>Monitor your spending habits and expenses.</p>
+                  </Widget>
+                </Tooltip>
+              </Grid>
+              <Grid item xs={12} sm={6} md={4} lg={3}>
+                 <Tooltip title="Get a consolidated view of your financial assets" arrow>
+                   <Widget component={Link} to="/banking/summary" elevation={3} aria-label="Summary Section">
+                     <SummaryIcon style={{ fontSize: '3rem', color: '#fff' }} />
+                     <h2>Summary</h2>
+                     <p>Consolidated view of financial assets.</p>
+                   </Widget>
+                 </Tooltip>
               </Grid>
             </Grid>
           </DashboardContainer>
         } />
-
         <Route path="/banking" element={<BankingDashboard />} />
         <Route path="/banking/savings-accounts" element={<SavingsAccounts />} />
         <Route path="/banking/fixed-deposits" element={<FixedDeposits />} />
@@ -128,8 +152,12 @@ function App() {
         <Route path="/chits/standard" element={<StandardChits />} />
         <Route path="/chits/variable" element={<VariableChits />} />
         <Route path="/chits/summary" element={<ChitSummary />} />
-        <Route path="/home-loan" element={<HomeLoan />} />
+        <Route path="/loans" element={<LoansDashboard />} />
+        <Route path="/loans/given" element={<LoansGiven />} />
+        <Route path="/loans/taken" element={<LoansTaken />} />
         <Route path="/money-invested" element={<MoneyInvested />} />
+        <Route path="/earnings" element={<EarningsPage />} />
+        <Route path="/spending" element={<SpendingPage />} />
       </Routes>
     </Router>
   );
