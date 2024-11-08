@@ -190,11 +190,11 @@ const StandardChits = () => {
   return (
     <ChitContainer>
       <Header>Standard Chits</Header>
-      <Button variant="contained" color="primary" onClick={handleOpen}>
+      <Button variant="contained" color="secondary" onClick={handleBack} >
+              Back to Chits Dashboard
+            </Button>
+      <Button variant="contained" color="primary" onClick={handleOpen} style={{ marginLeft: '20px' }}>
         Add New Chit
-      </Button>
-      <Button variant="contained" color="secondary" onClick={handleBack} style={{ marginLeft: '20px' }}>
-        Back to Chits Dashboard
       </Button>
       <Grid container spacing={3} style={{ marginTop: '20px' }}>
         {chits.map((chit) => (

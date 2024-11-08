@@ -23,7 +23,7 @@ def add_investment():
         )
         mysql.connection.commit()
         cur.close()
-        return jsonify({'message': 'Investment added successfully!'}), 201
+        return data
     except Exception as e:
         cur.close()
         return jsonify({'error': str(e)}), 500
