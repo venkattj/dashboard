@@ -189,11 +189,11 @@ const StandardChits = () => {
 
   return (
     <ChitContainer>
+      <Button variant="contained" color="primary" onClick={handleBack} >
+         Back to Chits Dashboard
+      </Button>
       <Header>Standard Chits</Header>
-      <Button variant="contained" color="secondary" onClick={handleBack} >
-              Back to Chits Dashboard
-            </Button>
-      <Button variant="contained" color="primary" onClick={handleOpen} style={{ marginLeft: '20px' }}>
+      <Button variant="contained" color="secondary" onClick={handleOpen} style={{ marginLeft: '20px' }}>
         Add New Chit
       </Button>
       <Grid container spacing={3} style={{ marginTop: '20px' }}>

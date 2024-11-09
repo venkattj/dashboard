@@ -49,6 +49,20 @@ const Header = styled.h1`
   color: #fff;
   text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.6);
 `;
+const BackButton = styled(Link)`
+  text-decoration: none;
+  color: white;
+  padding: 10px 20px;
+  background-color: #1976d2;
+  border-radius: 5px;
+  margin-bottom: 30px;
+  display: inline-block;
+  transition: background-color 0.3s;
+
+  &:hover {
+    background-color: #0d47a1;
+  }
+`;
 
 const ChitsPage = () => {
   const navigate = useNavigate();
@@ -59,15 +73,8 @@ const ChitsPage = () => {
 
   return (
     <ChitsContainer>
+      <BackButton to="/">Back to Main Dashboard</BackButton>
       <Header>Chits Dashboard</Header>
-      <Button
-        variant="contained"
-        color="secondary"
-        onClick={handleBack}
-        style={{ marginBottom: '20px', color: 'white', fontWeight: 'bold' }}
-      >
-        Back to Main Dashboard
-      </Button>
       <Grid container spacing={3} justifyContent="center">
         <Grid item xs={12} sm={6} md={4}>
           <Tooltip title="View details of variable chit funds" arrow>

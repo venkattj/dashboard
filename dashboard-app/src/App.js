@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
-import { Grid, Paper, Tooltip, Button} from '@mui/material';
+import { Grid, Paper, Tooltip, Button, Snackbar, Alert } from '@mui/material';
 import styled from 'styled-components';
 import BankingDashboard from './BankComponent/BankingDashboard';
 import SavingsAccounts from './BankComponent/SavingsAccounts';
@@ -72,11 +72,38 @@ const Header = styled.h1`
   text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.6);
 `;
 
-const startMySQL = () => api.get('/mysql/start');
-const stopMySQL = () => api.get('/mysql/stop');
-const ButtonContainer = styled.div` display: flex; justify-content: center; gap: 20px; margin-bottom: 20px; `
+const ButtonContainer = styled.div`
+  display: flex;
+  justify-content: center;
+  gap: 20px;
+  margin-bottom: 20px;
+`;
 
 function App() {
+  const [notification, setNotification] = useState({ open: false, message: '', severity: 'success' });
+
+  const handleMySQLStart = async () => {
+    try {
+      await api.get('/mysql/start');
+      setNotification({ open: true, message: 'MySQL started successfully!', severity: 'success' });
+    } catch (error) {
+      setNotification({ open: true, message: 'Failed to start MySQL.', severity: 'error' });
+    }
+  };
+
+  const handleMySQLStop = async () => {
+    try {
+      await api.get('/mysql/stop');
+      setNotification({ open: true, message: 'MySQL stopped successfully!', severity: 'success' });
+    } catch (error) {
+      setNotification({ open: true, message: 'Failed to stop MySQL.', severity: 'error' });
+    }
+  };
+
+  const handleCloseNotification = () => {
+    setNotification({ ...notification, open: false });
+  };
+
   return (
     <Router>
       <Routes>
@@ -84,9 +111,14 @@ function App() {
           <DashboardContainer>
             <Header>My Finance Dashboard</Header>
             <ButtonContainer>
-                <Button variant="contained" color="primary" onClick={startMySQL}>Start MySQL</Button>
-                <Button variant="contained" color="secondary" onClick={stopMySQL}>Stop MySQL</Button>
+                <Button variant="contained" color="primary" onClick={handleMySQLStart}>Start MySQL</Button>
+                <Button variant="contained" color="secondary" onClick={handleMySQLStop}>Stop MySQL</Button>
             </ButtonContainer>
+              <Snackbar open={notification.open} autoHideDuration={3000} onClose={handleCloseNotification}>
+                <Alert onClose={handleCloseNotification} severity={notification.severity} sx={{ width: '100%' }}>
+                  {notification.message}
+                </Alert>
+              </Snackbar>
             <Grid container spacing={3} justifyContent="center">
               <Grid item xs={12} sm={6} md={4} lg={3}>
                 <Tooltip title="Details about your bank accounts and transactions" arrow>

@@ -259,11 +259,11 @@ const VariableChits = () => {
 
   return (
     <ChitContainer>
+      <Button variant="contained" color="primary" onClick={() => window.history.back()} >
+        Back to Chits Dashboard
+      </Button>
       <Header>Variable Chits</Header>
-      <Button variant="contained" color="secondary" onClick={() => window.history.back()} >
-                    Back to Chits Dashboard
-                  </Button>
-      <Button variant="contained" color="primary" onClick={handleOpen} style={{ marginLeft: '20px' }}>
+      <Button variant="contained" color="secondary" onClick={handleOpen} style={{ marginLeft: '20px' }}>
         Add New Variable Chit
       </Button>
       <Grid container spacing={3} style={{ marginTop: '20px' }}>

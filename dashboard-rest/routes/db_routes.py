@@ -9,26 +9,24 @@ bp = Blueprint('db_routes', __name__)
 def stop_mysql_service():
     try:
         result = subprocess.run(['net', 'stop', 'MySQL80'], capture_output=True, text=True, check=True)
-        return result.stdout
+        return jsonify(result.stdout) , 200
     except subprocess.CalledProcessError as e:
-        return f"Error stopping MySQL service: {e.stderr}"
+        return jsonify(f"Error stopping MySQL service: {e.stderr}") , 500
 
 def start_mysql_service():
     try:
         result = subprocess.run(['net', 'start', 'MySQL80'], capture_output=True, text=True, check=True)
-        return result.stdout
+        return jsonify(result.stdout) , 200
     except subprocess.CalledProcessError as e:
-        return f"Error starting MySQL service: {e.stderr}"
+        return jsonify(f"Error starting MySQL service: {e.stderr}"), 500
 
 @bp.route('/mysql/start', methods=['GET'])
 def start_service():
-    output = start_mysql_service()
-    return jsonify({"message": output})
+    return start_mysql_service()
 
 @bp.route('/mysql/stop', methods=['GET'])
 def stop_service():
-    output = stop_mysql_service()
-    return jsonify({"message": output})
+    return stop_mysql_service()
 
 @bp.route('/health', methods=['GET'])
 def health_check():
