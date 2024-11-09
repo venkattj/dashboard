@@ -1,6 +1,6 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
-import { Grid, Paper, Tooltip } from '@mui/material';
+import { Grid, Paper, Tooltip, Button} from '@mui/material';
 import styled from 'styled-components';
 import BankingDashboard from './BankComponent/BankingDashboard';
 import SavingsAccounts from './BankComponent/SavingsAccounts';
@@ -25,6 +25,7 @@ import MoneyOffIcon from '@mui/icons-material/MoneyOff';
 import EarningsPage from './EarningComponent/EarningsPage';
 import SpendingPage from './SpendingComponent/SpendingPage';
 import SummaryPage from './SummaryPage';
+import api from './api';
 
 const DashboardContainer = styled.div`
   min-height: 100vh;
@@ -71,6 +72,10 @@ const Header = styled.h1`
   text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.6);
 `;
 
+const startMySQL = () => api.get('/mysql/start');
+const stopMySQL = () => api.get('/mysql/stop');
+const ButtonContainer = styled.div` display: flex; justify-content: center; gap: 20px; margin-bottom: 20px; `
+
 function App() {
   return (
     <Router>
@@ -78,6 +83,10 @@ function App() {
         <Route path="/" element={
           <DashboardContainer>
             <Header>My Finance Dashboard</Header>
+            <ButtonContainer>
+                <Button variant="contained" color="primary" onClick={startMySQL}>Start MySQL</Button>
+                <Button variant="contained" color="secondary" onClick={stopMySQL}>Stop MySQL</Button>
+            </ButtonContainer>
             <Grid container spacing={3} justifyContent="center">
               <Grid item xs={12} sm={6} md={4} lg={3}>
                 <Tooltip title="Details about your bank accounts and transactions" arrow>
