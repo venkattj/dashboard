@@ -1,0 +1,5 @@
+2024/11/10 00:43:06 [emerg] 21984#2704: "location" directive is not allowed here in D:\dashboard\dashboard-server\nginx-1.26.2/conf/nginx.conf:54
+2024/11/10 00:44:49 [emerg] 20620#23668: "location" directive is not allowed here in D:\dashboard\dashboard-server\nginx-1.26.2/conf/nginx.conf:54
+2024/11/10 00:47:11 [notice] 5900#3496: signal process started
+2024/11/10 00:47:11 [error] 5900#3496: CreateFile() "D:\dashboard\dashboard-server\nginx-1.26.2/logs/nginx.pid" failed (2: The system cannot find the file specified)
+2024/11/10 00:51:41 [notice] 16428#11384: signal process started

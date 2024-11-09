@@ -1,0 +1,4 @@
+127.0.0.1 - - [10/Nov/2024:00:51:21 +0530] "GET / HTTP/1.1" 200 853 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
+127.0.0.1 - - [10/Nov/2024:00:51:22 +0530] "GET /static/js/bundle.js HTTP/1.1" 200 834238 "http://finance.com/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
+127.0.0.1 - - [10/Nov/2024:00:51:22 +0530] "GET /favicon.ico HTTP/1.1" 200 3662 "http://finance.com/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
+127.0.0.1 - - [10/Nov/2024:00:51:45 +0530] "GET / HTTP/1.1" 304 0 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
