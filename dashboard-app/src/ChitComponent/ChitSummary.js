@@ -6,6 +6,7 @@ import styled from 'styled-components';
 import { useNavigate } from 'react-router-dom';
 import api from '../api'; // Ensure this points to your API module
 import moment from 'moment'; // Import moment.js for date calculations
+import { Link } from 'react-router-dom';
 
 const SummaryContainer = styled.div`
   min-height: 100vh;
@@ -27,7 +28,20 @@ const Header = styled.h1`
   margin-bottom: 40px;
   font-size: 2.5rem;
 `;
+const BackButton = styled(Link)`
+  text-decoration: none;
+  color: white;
+  padding: 10px 20px;
+  background-color: #1976d2;
+  border-radius: 5px;
+  margin-bottom: 30px; /* Increased margin for spacing */
+  display: inline-block;
+  transition: background-color 0.3s;
 
+  &:hover {
+    background-color: #0d47a1;
+  }
+`;
 const ChitSummary = () => {
   const navigate = useNavigate();
   const [totalVariableChitAmount, setTotalVariableChitAmount] = useState(0);
@@ -79,9 +93,7 @@ const ChitSummary = () => {
   return (
     <SummaryContainer>
       <Header>Chits Summary</Header>
-      <Button variant="outlined" color="secondary" onClick={handleBack} style={{ marginBottom: '20px' }}>
-        Back to Chits Dashboard
-      </Button>
+      <BackButton to="/chits">Back to Chits Dashboard</BackButton>
       <Widget elevation={3}>
         <Typography variant="h5">Total Variable Chit Amount:</Typography>
         <Typography variant="h6">₹{totalVariableChitAmount.toLocaleString()}</Typography>

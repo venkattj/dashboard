@@ -5,7 +5,7 @@ import styled from 'styled-components';
 import BankingDashboard from './BankComponent/BankingDashboard';
 import SavingsAccounts from './BankComponent/SavingsAccounts';
 import FixedDeposits from './BankComponent/FixedDeposits';
-import SummaryPage from './BankComponent/SummaryPage';
+import BankSummary from './BankComponent/SummaryPage';
 import ChitsPage from './ChitComponent/ChitsPage';
 import StandardChits from './ChitComponent/StandardChits';
 import VariableChits from './ChitComponent/VariableChits';
@@ -24,6 +24,7 @@ import AttachMoneyIcon from '@mui/icons-material/AttachMoney';
 import MoneyOffIcon from '@mui/icons-material/MoneyOff';
 import EarningsPage from './EarningComponent/EarningsPage';
 import SpendingPage from './SpendingComponent/SpendingPage';
+import SummaryPage from './SummaryPage';
 
 const DashboardContainer = styled.div`
   min-height: 100vh;
@@ -88,24 +89,6 @@ function App() {
                 </Tooltip>
               </Grid>
               <Grid item xs={12} sm={6} md={4} lg={3}>
-                <Tooltip title="Details about your home loan status and repayments" arrow>
-                  <Widget component={Link} to="/loans" elevation={3} aria-label="Home Loan Section">
-                    <HomeIcon style={{ fontSize: '3rem', color: '#fff' }} />
-                    <h2>Loans</h2>
-                    <p>View loan status and repayments.</p>
-                  </Widget>
-                </Tooltip>
-              </Grid>
-              <Grid item xs={12} sm={6} md={4} lg={3}>
-                <Tooltip title="Overview of all the money you've invested across different assets" arrow>
-                  <Widget component={Link} to="/money-invested" elevation={3} aria-label="Money Invested Section">
-                    <SavingsIcon style={{ fontSize: '3rem', color: '#fff' }} />
-                    <h2>Money Invested</h2>
-                    <p>Track your investments and assets.</p>
-                  </Widget>
-                </Tooltip>
-              </Grid>
-              <Grid item xs={12} sm={6} md={4} lg={3}>
                 <Tooltip title="Monitor your chit fund contributions and returns" arrow>
                   <Widget component={Link} to="/chits" elevation={3} aria-label="Chits Section">
                     <LocalAtmIcon style={{ fontSize: '3rem', color: '#fff' }} />
@@ -113,6 +96,15 @@ function App() {
                     <p>Check chit fund contributions and returns.</p>
                   </Widget>
                 </Tooltip>
+              </Grid>
+              <Grid item xs={12} sm={6} md={4} lg={3}>
+                  <Tooltip title="Overview of all the money you've invested across different assets" arrow>
+                    <Widget component={Link} to="/money-invested" elevation={3} aria-label="Money Invested Section">
+                      <SavingsIcon style={{ fontSize: '3rem', color: '#fff' }} />
+                      <h2>Money Invested</h2>
+                      <p>Track your investments and assets.</p>
+                    </Widget>
+                  </Tooltip>
               </Grid>
               <Grid item xs={12} sm={6} md={4} lg={3}>
                 <Tooltip title="Track your earnings" arrow>
@@ -133,8 +125,17 @@ function App() {
                 </Tooltip>
               </Grid>
               <Grid item xs={12} sm={6} md={4} lg={3}>
+                  <Tooltip title="Details about your home loan status and repayments" arrow>
+                    <Widget component={Link} to="/loans" elevation={3} aria-label="Home Loan Section">
+                      <HomeIcon style={{ fontSize: '3rem', color: '#fff' }} />
+                      <h2>Loans</h2>
+                      <p>View loan status and repayments.</p>
+                    </Widget>
+                  </Tooltip>
+              </Grid>
+              <Grid item xs={12} sm={6} md={4} lg={3}>
                  <Tooltip title="Get a consolidated view of your financial assets" arrow>
-                   <Widget component={Link} to="/banking/summary" elevation={3} aria-label="Summary Section">
+                   <Widget component={Link} to="/summary" elevation={3} aria-label="Summary Section">
                      <SummaryIcon style={{ fontSize: '3rem', color: '#fff' }} />
                      <h2>Summary</h2>
                      <p>Consolidated view of financial assets.</p>
@@ -147,7 +148,7 @@ function App() {
         <Route path="/banking" element={<BankingDashboard />} />
         <Route path="/banking/savings-accounts" element={<SavingsAccounts />} />
         <Route path="/banking/fixed-deposits" element={<FixedDeposits />} />
-        <Route path="/banking/summary" element={<SummaryPage />} />
+        <Route path="/banking/summary" element={<BankSummary />} />
         <Route path="/chits" element={<ChitsPage />} />
         <Route path="/chits/standard" element={<StandardChits />} />
         <Route path="/chits/variable" element={<VariableChits />} />
@@ -158,6 +159,7 @@ function App() {
         <Route path="/money-invested" element={<MoneyInvested />} />
         <Route path="/earnings" element={<EarningsPage />} />
         <Route path="/spending" element={<SpendingPage />} />
+        <Route path="/summary" element={<SummaryPage />} />
       </Routes>
     </Router>
   );
