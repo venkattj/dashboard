@@ -6,7 +6,6 @@ import api from '../api'; // Ensure this points to your API module
 import moment from 'moment';
 
 const SummaryContainer = styled.div`
-  min-height: 100vh;
   background: linear-gradient(45deg, #4a90e2, #50a7c2);
   padding: 40px;
   color: white;
@@ -17,6 +16,8 @@ const SummaryContainer = styled.div`
 const DashboardContainer = styled.div`
   padding: 40px;
   color: #fff;
+  background: linear-gradient(45deg, #4a90e2, #50a7c2);
+  min-height: 100vh;
 `;
 const BackButton = styled(Link)`
   text-decoration: none;

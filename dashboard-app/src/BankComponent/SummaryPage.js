@@ -8,7 +8,6 @@ import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
 import AccountCircleIcon from '@mui/icons-material/AccountCircle';
 
 const SummaryContainer = styled.div`
-  min-height: 100vh;
   background: linear-gradient(135deg, #4a90e2, #50a7c2);
   padding: 40px;
   color: white;
@@ -18,8 +17,10 @@ const SummaryContainer = styled.div`
 `;
 
 const DashboardContainer = styled.div`
+  min-height: 100vh;
   padding: 40px;
   color: #fff;
+  background: linear-gradient(45deg, #4a90e2, #50a7c2);
 `;
 
 const BackButton = styled(Link)`
