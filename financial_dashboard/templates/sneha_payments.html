@@ -37,39 +37,6 @@
     </article>
   </section>
 
-  <section class="split">
-    <article class="card">
-      <div class="eyebrow">Highest Payment</div>
-      <h3>Largest single payment</h3>
-      <div class="stack">
-        <div>
-          <strong>{% if insights.highest_payment %}{{ insights.highest_payment.payment_date }}{% else %}No data{% endif %}</strong>
-          <div class="kpi-note">
-            {% if insights.highest_payment %}
-              {{ format_currency(insights.highest_payment.amount) }} is the highest payment recorded.
-            {% endif %}
-          </div>
-        </div>
-      </div>
-    </article>
-
-    <article class="card">
-      <div class="eyebrow">Monthly Pattern</div>
-      <h3>Payment flow over time</h3>
-      <div class="progress">
-        {% for item in insights.payment_mix %}
-          <div class="progress-row">
-            <strong>{{ item.label }}</strong>
-            <div class="bar"><span style="width: {{ (item.amount / insights.largest_mix_value * 100) if insights.largest_mix_value else 0 }}%"></span></div>
-            <span>{{ format_currency(item.amount) }}</span>
-          </div>
-        {% else %}
-          <div class="muted">No Sneha payments available.</div>
-        {% endfor %}
-      </div>
-    </article>
-  </section>
-
   <section class="card">
     <div class="grid-header">
       <div>
