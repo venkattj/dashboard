@@ -1,0 +1,315 @@
+{% extends "base.html" %}
+
+{% block title %}{{ entity.title }} | Financial Dashboard{% endblock %}
+
+{% block content %}
+  <section class="hero">
+    <div class="eyebrow">Workspace</div>
+    <h2>{{ entity.title }}</h2>
+    <p>{{ entity.description }}</p>
+    <div class="chip-row">
+      <span class="chip">{{ summary.record_count }} records</span>
+      {% if summary.primary_numeric %}
+        <span class="chip">{{ format_currency(summary.total_value) }} total {{ summary.primary_numeric.label|lower }}</span>
+      {% endif %}
+    </div>
+  </section>
+
+  <section class="grid metrics">
+    <article class="card">
+      <div class="eyebrow">Records</div>
+      <p class="metric">{{ summary.record_count }}</p>
+      <div class="kpi-note">Rows currently available in this section.</div>
+    </article>
+    {% if summary.primary_numeric %}
+      <article class="card">
+        <div class="eyebrow">Total {{ summary.primary_numeric.label }}</div>
+        <p class="metric">{{ format_currency(summary.total_value) }}</p>
+        <div class="kpi-note">Across all visible rows in {{ entity.title|lower }}.</div>
+      </article>
+      <article class="card">
+        <div class="eyebrow">Average {{ summary.primary_numeric.label }}</div>
+        <p class="metric">{{ format_currency(summary.average_value) }}</p>
+        <div class="kpi-note">A quick benchmark across the dataset.</div>
+      </article>
+      <article class="card">
+        <div class="eyebrow">Top Row</div>
+        <p class="metric">
+          {% if summary.top_row %}
+            {{ format_currency(summary.top_row[summary.primary_numeric.name]) }}
+          {% else %}
+            Rs. 0.00
+          {% endif %}
+        </p>
+        <div class="kpi-note">
+          {% if summary.top_row %}
+            Highest {{ summary.primary_numeric.label|lower }} in this section.
+          {% else %}
+            No data available.
+          {% endif %}
+        </div>
+      </article>
+    {% endif %}
+  </section>
+
+  <section class="card">
+    <div class="grid-header">
+      <div>
+        <div class="eyebrow">Data Grid</div>
+        <h3 style="margin:0;">{{ entity.title }}</h3>
+        <div class="kpi-note">Open the table only when needed. Sort from headers, filter inside the grid, and switch a row into edit mode only when you want to update it.</div>
+      </div>
+      <div class="header-tools">
+        <span class="pill-stat"><strong id="table-visible-count">{{ rows|length }}</strong> visible rows</span>
+        {% if summary.primary_numeric %}
+          <span class="pill-stat"><strong id="table-visible-total">{{ format_currency(summary.total_value) }}</strong> visible total</span>
+        {% endif %}
+        <a class="btn secondary" href="{{ url_for('dashboard') }}">Back</a>
+        <a class="btn secondary" href="{{ url_for('entity_create', entity_key=entity_key) }}">Add Record</a>
+        <button type="button" id="toggle-table" class="btn">Show Table</button>
+        <button class="btn secondary" type="button" id="table-reset">Reset Grid</button>
+      </div>
+    </div>
+
+    <div class="table-wrap hidden" id="entity-table-panel">
+      <table id="entity-grid-table" class="sticky-head">
+        <thead>
+          <tr>
+            <th><button class="th-button" type="button" data-sort-key="id" data-sort-type="number">ID</button></th>
+            {% for column in entity.columns %}
+              <th><button class="th-button" type="button" data-sort-key="{{ column.name }}" data-sort-type="{{ 'number' if column.type == 'number' else 'text' }}">{{ column.label }}</button></th>
+            {% endfor %}
+            <th>Actions</th>
+          </tr>
+          <tr class="table-filter-row">
+            <th></th>
+            {% for column in entity.columns %}
+              <th>
+                {% if column.type == 'number' %}
+                  <div style="display:grid; gap:8px;">
+                    <input class="column-min-filter" data-column="{{ column.name }}" type="number" step="0.01" placeholder="Min">
+                    <input class="column-max-filter" data-column="{{ column.name }}" type="number" step="0.01" placeholder="Max">
+                  </div>
+                {% elif filter_options.get(column.name) %}
+                  <select class="column-text-filter" data-column="{{ column.name }}">
+                    <option value="">All</option>
+                    {% for option in filter_options[column.name] %}
+                      <option value="{{ option }}">{{ option }}</option>
+                    {% endfor %}
+                  </select>
+                {% else %}
+                  <input class="column-search-filter" data-column="{{ column.name }}" type="search" placeholder="Filter">
+                {% endif %}
+              </th>
+            {% endfor %}
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="entity-grid-body">
+          {% for row in rows %}
+            <tr data-id="{{ row.id }}"
+              {% for column in entity.columns %}
+                data-{{ column.name }}="{{ (row[column.name] if row[column.name] is not none else '')|string|lower }}"
+              {% endfor %}
+            >
+              <td>
+                {{ row.id }}
+                <form id="entity-row-{{ entity_key }}-{{ row.id }}" method="post" action="{{ url_for('entity_inline_update', entity_key=entity_key, row_id=row.id) }}"></form>
+              </td>
+              {% for column in entity.columns %}
+                <td>
+                  <span class="cell-view">
+                    {% if column.type == 'number' %}
+                      {{ format_number(row[column.name]) }}
+                    {% else %}
+                      {{ row[column.name] or 'Unassigned' }}
+                    {% endif %}
+                  </span>
+                  <input class="table-input hidden" type="{{ 'number' if column.type == 'number' else ('date' if column.type == 'date' else 'text') }}"
+                    {% if column.type == 'number' %}step="{{ column.step or '0.01' }}"{% endif %}
+                    name="{{ column.name }}"
+                    value="{{ row[column.name] if row[column.name] is not none else '' }}"
+                    form="entity-row-{{ entity_key }}-{{ row.id }}"
+                    {% if column.type == 'text' %}maxlength="255"{% endif %}>
+                </td>
+              {% endfor %}
+              <td>
+                <div class="table-actions">
+                  <button type="button" class="btn secondary row-edit-toggle">Edit</button>
+                  <button type="submit" form="entity-row-{{ entity_key }}-{{ row.id }}" class="hidden row-save-button">Save</button>
+                  <button type="button" class="btn secondary hidden row-cancel-button">Cancel</button>
+                  <form class="inline" method="post" action="{{ url_for('entity_delete', entity_key=entity_key, row_id=row.id) }}" onsubmit="return confirm('Delete this record?');">
+                    <button class="btn danger" type="submit">Delete</button>
+                  </form>
+                </div>
+              </td>
+            </tr>
+          {% else %}
+            <tr><td colspan="{{ entity.columns|length + 2 }}">No records found.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <script>
+    (() => {
+      const table = document.getElementById("entity-grid-table");
+      if (!table) return;
+
+      const tbody = document.getElementById("entity-grid-body");
+      const toggleTableButton = document.getElementById("toggle-table");
+      const tablePanel = document.getElementById("entity-table-panel");
+      const resetButton = document.getElementById("table-reset");
+      const visibleCount = document.getElementById("table-visible-count");
+      const visibleTotal = document.getElementById("table-visible-total");
+      const sortButtons = Array.from(table.querySelectorAll("[data-sort-key]"));
+      const textSelectFilters = Array.from(table.querySelectorAll(".column-text-filter"));
+      const textSearchFilters = Array.from(table.querySelectorAll(".column-search-filter"));
+      const minFilters = Array.from(table.querySelectorAll(".column-min-filter"));
+      const maxFilters = Array.from(table.querySelectorAll(".column-max-filter"));
+      const rows = Array.from(tbody.querySelectorAll("tr[data-id]"));
+
+      const primaryNumeric = {% if summary.primary_numeric %}"{{ summary.primary_numeric.name }}"{% else %}null{% endif %};
+      let sortState = { key: "id", direction: "desc", type: "number" };
+
+      const formatCurrency = (value) =>
+        `Rs. ${Number(value || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+      const paintSortLabels = () => {
+        sortButtons.forEach((button) => {
+          const baseLabel = button.dataset.baseLabel;
+          button.textContent = button.dataset.sortKey === sortState.key
+            ? `${baseLabel} ${sortState.direction === "asc" ? "^" : "v"}`
+            : baseLabel;
+        });
+      };
+
+      const applySort = () => {
+        const sorted = [...rows].sort((a, b) => {
+          const aValue = a.dataset[sortState.key] || "";
+          const bValue = b.dataset[sortState.key] || "";
+          if (sortState.type === "number") {
+            return sortState.direction === "asc"
+              ? Number(aValue) - Number(bValue)
+              : Number(bValue) - Number(aValue);
+          }
+          return sortState.direction === "asc"
+            ? aValue.localeCompare(bValue)
+            : bValue.localeCompare(aValue);
+        });
+        sorted.forEach((row) => tbody.appendChild(row));
+        paintSortLabels();
+      };
+
+      const applyFilters = () => {
+        let count = 0;
+        let total = 0;
+
+        rows.forEach((row) => {
+          let show = true;
+
+          textSelectFilters.forEach((filter) => {
+            if (!show) return;
+            const value = filter.value.trim().toLowerCase();
+            const column = filter.dataset.column;
+            if (value && (row.dataset[column] || "") !== value) show = false;
+          });
+
+          textSearchFilters.forEach((filter) => {
+            if (!show) return;
+            const value = filter.value.trim().toLowerCase();
+            const column = filter.dataset.column;
+            if (value && !(row.dataset[column] || "").includes(value)) show = false;
+          });
+
+          minFilters.forEach((filter) => {
+            if (!show) return;
+            const column = filter.dataset.column;
+            const value = filter.value === "" ? null : Number(filter.value);
+            if (value !== null && Number(row.dataset[column] || 0) < value) show = false;
+          });
+
+          maxFilters.forEach((filter) => {
+            if (!show) return;
+            const column = filter.dataset.column;
+            const value = filter.value === "" ? null : Number(filter.value);
+            if (value !== null && Number(row.dataset[column] || 0) > value) show = false;
+          });
+
+          row.style.display = show ? "" : "none";
+          if (show) {
+            count += 1;
+            if (primaryNumeric) total += Number(row.dataset[primaryNumeric] || 0);
+          }
+        });
+
+        visibleCount.textContent = count;
+        if (visibleTotal && primaryNumeric) visibleTotal.textContent = formatCurrency(total);
+      };
+
+      const setRowEditing = (row, editing) => {
+        row.classList.toggle("row-editing", editing);
+        row.querySelectorAll(".cell-view").forEach((element) => element.classList.toggle("hidden", editing));
+        row.querySelectorAll(".table-input").forEach((element) => element.classList.toggle("hidden", !editing));
+        row.querySelector(".row-edit-toggle").classList.toggle("hidden", editing);
+        row.querySelector(".row-save-button").classList.toggle("hidden", !editing);
+        row.querySelector(".row-cancel-button").classList.toggle("hidden", !editing);
+      };
+
+      rows.forEach((row) => {
+        const editButton = row.querySelector(".row-edit-toggle");
+        const cancelButton = row.querySelector(".row-cancel-button");
+        const inputs = row.querySelectorAll(".table-input");
+        const initialValues = Array.from(inputs).map((input) => input.value);
+
+        editButton.addEventListener("click", () => setRowEditing(row, true));
+        cancelButton.addEventListener("click", () => {
+          inputs.forEach((input, index) => {
+            input.value = initialValues[index];
+          });
+          setRowEditing(row, false);
+        });
+      });
+
+      sortButtons.forEach((button) => {
+        button.dataset.baseLabel = button.textContent;
+        button.addEventListener("click", () => {
+          const nextKey = button.dataset.sortKey;
+          const nextType = button.dataset.sortType;
+          if (sortState.key === nextKey) {
+            sortState.direction = sortState.direction === "asc" ? "desc" : "asc";
+          } else {
+            sortState = { key: nextKey, direction: nextType === "text" ? "asc" : "desc", type: nextType };
+          }
+          applySort();
+          applyFilters();
+        });
+      });
+
+      [...textSelectFilters, ...textSearchFilters, ...minFilters, ...maxFilters].forEach((element) => {
+        element.addEventListener("input", applyFilters);
+        element.addEventListener("change", applyFilters);
+      });
+
+      toggleTableButton.addEventListener("click", () => {
+        const isHidden = tablePanel.classList.contains("hidden");
+        tablePanel.classList.toggle("hidden", !isHidden);
+        toggleTableButton.textContent = isHidden ? "Hide Table" : "Show Table";
+      });
+
+      resetButton.addEventListener("click", () => {
+        [...textSelectFilters, ...textSearchFilters, ...minFilters, ...maxFilters].forEach((element) => {
+          element.value = "";
+        });
+        rows.forEach((row) => setRowEditing(row, false));
+        sortState = { key: "id", direction: "desc", type: "number" };
+        applySort();
+        applyFilters();
+      });
+
+      applySort();
+      applyFilters();
+    })();
+  </script>
+{% endblock %}

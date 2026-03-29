@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard | Financial Dashboard{% endblock %}
+
+{% block content %}
+  <section class="hero">
+    <div class="eyebrow">Financial cockpit</div>
+    <h2>See where the money sits, where it moves, and what matures next.</h2>
+    <p>This dashboard is seeded from your Excel workbook into an in-memory SQLite database, so we can reload from source any time while still supporting fast CRUD workflows in the app.</p>
+    <div class="topbar">
+      <div class="muted">Last generated on {{ metrics.generated_on }}</div>
+      <form method="post" action="{{ url_for('reload_data') }}">
+        <button type="submit">Reload From Workbook</button>
+      </form>
+    </div>
+  </section>
+
+  <section class="grid metrics">
+    <article class="card"><div class="eyebrow">Net Worth</div><p class="metric">{{ format_currency(metrics.net_worth) }}</p><div class="footer-note">Assets minus outstanding obligations.</div></article>
+    <article class="card"><div class="eyebrow">Asset Base</div><p class="metric">{{ format_currency(metrics.asset_total) }}</p><div class="footer-note">Cash, investments, loans given, chits, and long-term assets.</div></article>
+    <article class="card"><div class="eyebrow">Monthly Surplus</div><p class="metric">{{ format_currency(metrics.monthly_surplus) }}</p><div class="footer-note">Monthly income {{ format_currency(metrics.monthly_income) }} less outflow {{ format_currency(metrics.monthly_spend) }}.</div></article>
+    <article class="card"><div class="eyebrow">Loan Obligations</div><p class="metric">{{ format_currency(metrics.loan_obligations) }}</p><div class="footer-note">Current negative balances captured in the loan ledger.</div></article>
+  </section>
+
+  <section class="split">
+    <article class="card">
+      <div class="eyebrow">Asset Allocation</div>
+      <h3>Capital distribution</h3>
+      <div class="progress">
+        {% for item in metrics.asset_mix %}
+          <div class="progress-row">
+            <strong>{{ item.label }}</strong>
+            <div class="bar"><span style="width: {{ (item.amount / metrics.largest_asset * 100) if metrics.largest_asset else 0 }}%"></span></div>
+            <span>{{ format_currency(item.amount) }}</span>
+          </div>
+        {% endfor %}
+      </div>
+    </article>
+    <article class="card">
+      <div class="eyebrow">Quick Actions</div>
+      <h3>Manage the live in-memory dataset</h3>
+      <p class="muted">Open any section below to add, edit, or remove records without touching the original workbook until you choose to reload.</p>
+      <div class="actions">
+        <a class="btn secondary" href="{{ url_for('entity_list', entity_key='bank_accounts') }}">Banks</a>
+        <a class="btn secondary" href="{{ url_for('entity_list', entity_key='fixed_deposits') }}">Fixed Deposits</a>
+        <a class="btn secondary" href="{{ url_for('entity_list', entity_key='earnings') }}">Earnings</a>
+        <a class="btn secondary" href="{{ url_for('entity_list', entity_key='spending') }}">Spending</a>
+        <a class="btn secondary" href="{{ url_for('entity_list', entity_key='loans') }}">Loans</a>
+        <a class="btn secondary" href="{{ url_for('entity_list', entity_key='stocks') }}">Stocks</a>
+      </div>
+    </article>
+  </section>
+
+  <section class="split">
+    <article class="card">
+      <div class="eyebrow">Maturity Alerts</div>
+      <h3>Upcoming fixed deposits</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Bank</th><th>Maturity Date</th><th>Days Left</th><th>Current Amount</th></tr></thead>
+          <tbody>
+            {% for row in metrics.upcoming_fds %}
+              <tr><td>{{ row.bank }}</td><td>{{ row.maturity_date }}</td><td>{{ row.days_to_mature }}</td><td>{{ format_currency(row.current_amount) }}</td></tr>
+            {% else %}
+              <tr><td colspan="4">No upcoming maturities in the next 120 days.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </article>
+    <article class="card">
+      <div class="eyebrow">Cash Concentration</div>
+      <h3>Highest bank balances</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Holder</th><th>Bank</th><th>Balance</th></tr></thead>
+          <tbody>
+            {% for row in metrics.highest_balances %}
+              <tr><td>{{ row.account_holder }}</td><td>{{ row.bank_name }}</td><td>{{ format_currency(row.balance) }}</td></tr>
+            {% else %}
+              <tr><td colspan="3">No bank data available.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </article>
+  </section>
+
+  <section class="split">
+    <article class="card">
+      <div class="eyebrow">Equity Winners</div>
+      <h3>Top stock gains</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Symbol</th><th>Market Value</th><th>P&amp;L</th></tr></thead>
+          <tbody>
+            {% for row in metrics.top_stock_moves %}
+              <tr><td>{{ row.symbol }}</td><td>{{ format_currency(row.market_value) }}</td><td>{{ format_currency(row.pnl) }}</td></tr>
+            {% else %}
+              <tr><td colspan="3">No stock positions available.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </article>
+    <article class="card">
+      <div class="eyebrow">Equity Drags</div>
+      <h3>Positions needing attention</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Symbol</th><th>Market Value</th><th>P&amp;L</th></tr></thead>
+          <tbody>
+            {% for row in metrics.draggers %}
+              <tr><td>{{ row.symbol }}</td><td>{{ format_currency(row.market_value) }}</td><td>{{ format_currency(row.pnl) }}</td></tr>
+            {% else %}
+              <tr><td colspan="3">No stock positions available.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </article>
+  </section>
+
+  <section class="card">
+    <div class="eyebrow">Outgoing Pressure</div>
+    <h3>Largest recurring or planned spends</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Type</th><th>Person</th><th>To</th><th>Amount</th></tr></thead>
+        <tbody>
+          {% for row in metrics.biggest_expenses %}
+            <tr><td>{{ row.spending_type }}</td><td>{{ row.person }}</td><td>{{ row.recipient }}</td><td>{{ format_currency(row.amount) }}</td></tr>
+          {% else %}
+            <tr><td colspan="4">No spending data available.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+{% endblock %}

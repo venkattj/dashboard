@@ -1,0 +1,267 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page_title }} | Financial Dashboard{% endblock %}
+
+{% block content %}
+  <section class="hero">
+    <div class="eyebrow">{{ eyebrow }}</div>
+    <h2>{{ heading }}</h2>
+    <p>{{ description }}</p>
+    <div class="chip-row">
+      {% for chip in chips %}
+        <span class="chip">{{ chip.label }}</span>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="grid metrics">
+    {% for metric in metrics %}
+      <article class="card">
+        <div class="eyebrow">{{ metric.label }}</div>
+        <p class="metric">{{ format_currency(metric.value) }}</p>
+        <div class="kpi-note">{{ metric.note }}</div>
+      </article>
+    {% endfor %}
+  </section>
+
+  {% for section in sections %}
+    <section class="card">
+      <div class="grid-header">
+        <div>
+          <div class="eyebrow">Combined Workspace</div>
+          <h3 style="margin:0;">{{ section.entity.title }}</h3>
+          <div class="kpi-note">Filter and sort inside the grid, keep rows read-only by default, and switch into edit mode only when you want to change something.</div>
+        </div>
+        <div class="header-tools">
+          <span class="pill-stat"><strong id="{{ section.entity_key }}-count">{{ section.rows|length }}</strong> visible rows</span>
+          <span class="pill-stat"><strong id="{{ section.entity_key }}-total">{{ format_currency(section.total) }}</strong> {{ section.total_label }}</span>
+          <a class="btn secondary" href="{{ url_for('entity_create', entity_key=section.entity_key) }}">Add {{ section.entity.title }}</a>
+          <button type="button" id="toggle-{{ section.entity_key }}" class="btn">Show Table</button>
+          <button type="button" id="reset-{{ section.entity_key }}" class="btn secondary">Reset Grid</button>
+        </div>
+      </div>
+
+      <div class="grid metrics" style="margin-top:18px;">
+        {% for highlight in section.highlights %}
+          <article class="card" style="padding:16px;">
+            <div class="eyebrow">{{ highlight.label }}</div>
+            <p class="metric" style="font-size:1.35rem;">{{ highlight.value }}</p>
+            <div class="kpi-note">{{ highlight.note }}</div>
+          </article>
+        {% endfor %}
+      </div>
+
+      <div class="table-wrap hidden" id="{{ section.entity_key }}-panel">
+        <table id="{{ section.entity_key }}-table" class="sticky-head" data-total-field="{{ section.total_field }}">
+          <thead>
+            <tr>
+              <th><button class="th-button" type="button" data-sort-key="id" data-sort-type="number">ID</button></th>
+              {% for column in section.entity.columns %}
+                <th><button class="th-button" type="button" data-sort-key="{{ column.name }}" data-sort-type="{{ 'number' if column.type == 'number' else 'text' }}">{{ column.label }}</button></th>
+              {% endfor %}
+              <th>Actions</th>
+            </tr>
+            <tr class="table-filter-row">
+              <th></th>
+              {% for column in section.entity.columns %}
+                <th>
+                  {% if column.type == 'number' %}
+                    <div style="display:grid; gap:8px;">
+                      <input type="number" step="{{ column.step or 'any' }}" placeholder="Min" data-filter-key="{{ column.name }}" data-filter-mode="min">
+                      <input type="number" step="{{ column.step or 'any' }}" placeholder="Max" data-filter-key="{{ column.name }}" data-filter-mode="max">
+                    </div>
+                  {% else %}
+                    <input type="search" placeholder="Search {{ column.label|lower }}" data-filter-key="{{ column.name }}" data-filter-mode="text">
+                  {% endif %}
+                </th>
+              {% endfor %}
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in section.rows %}
+              <tr data-id="{{ row.id }}" data-row-total="{{ row[section.total_field] if row[section.total_field] is not none else 0 }}" {% for column in section.entity.columns %}data-{{ column.name }}="{{ (row[column.name] if row[column.name] is not none else '')|string|lower }}"{% endfor %}>
+                <td>
+                  {{ row.id }}
+                  <form id="{{ section.entity_key }}-row-{{ row.id }}" method="post" action="{{ url_for('entity_inline_update', entity_key=section.entity_key, row_id=row.id) }}"></form>
+                </td>
+                {% for column in section.entity.columns %}
+                  <td>
+                    <span class="cell-view">
+                      {{ format_cell(row[column.name], column) }}
+                    </span>
+                    <input class="table-input hidden" type="{{ column.type }}" name="{{ column.name }}" step="{{ column.step or 'any' }}" value="{{ row[column.name] if row[column.name] is not none else '' }}" form="{{ section.entity_key }}-row-{{ row.id }}" {% if column.type == 'text' %}maxlength="255"{% endif %}>
+                  </td>
+                {% endfor %}
+                <td>
+                  <div class="table-actions">
+                    <button type="button" class="btn secondary row-edit-toggle">Edit</button>
+                    <button type="submit" form="{{ section.entity_key }}-row-{{ row.id }}" class="hidden row-save-button">Save</button>
+                    <button type="button" class="btn secondary hidden row-cancel-button">Cancel</button>
+                    <a class="btn secondary" href="{{ url_for('entity_edit', entity_key=section.entity_key, row_id=row.id) }}">More</a>
+                    <form class="inline" method="post" action="{{ url_for('entity_delete', entity_key=section.entity_key, row_id=row.id) }}" onsubmit="return confirm('Delete this row?');">
+                      <button class="btn danger" type="submit">Delete</button>
+                    </form>
+                  </div>
+                </td>
+              </tr>
+            {% else %}
+              <tr><td colspan="{{ section.entity.columns|length + 2 }}">No data available.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  {% endfor %}
+
+  <script>
+    (() => {
+      const formatCurrency = (value) =>
+        `Rs. ${Number(value || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+      const setRowEditing = (row, editing) => {
+        row.classList.toggle("row-editing", editing);
+        row.querySelectorAll(".cell-view").forEach((element) => element.classList.toggle("hidden", editing));
+        row.querySelectorAll(".table-input").forEach((element) => element.classList.toggle("hidden", !editing));
+        row.querySelector(".row-edit-toggle").classList.toggle("hidden", editing);
+        row.querySelector(".row-save-button").classList.toggle("hidden", !editing);
+        row.querySelector(".row-cancel-button").classList.toggle("hidden", !editing);
+      };
+
+      const inRange = (value, minValue, maxValue) => {
+        if (minValue !== "" && value < Number(minValue)) return false;
+        if (maxValue !== "" && value > Number(maxValue)) return false;
+        return true;
+      };
+
+      document.querySelectorAll("[id$='-table']").forEach((table) => {
+        const entityKey = table.id.replace("-table", "");
+        const panel = document.getElementById(`${entityKey}-panel`);
+        const toggleButton = document.getElementById(`toggle-${entityKey}`);
+        const resetButton = document.getElementById(`reset-${entityKey}`);
+        const countNode = document.getElementById(`${entityKey}-count`);
+        const totalNode = document.getElementById(`${entityKey}-total`);
+        const rows = Array.from(table.querySelectorAll("tbody tr[data-id]"));
+        const sortButtons = Array.from(table.querySelectorAll("[data-sort-key]"));
+        const filters = Array.from(table.querySelectorAll("[data-filter-key]"));
+        let sortState = { key: "id", direction: "desc", type: "number" };
+
+        const paintSortLabels = () => {
+          sortButtons.forEach((button) => {
+            const baseLabel = button.dataset.baseLabel;
+            button.textContent = button.dataset.sortKey === sortState.key
+              ? `${baseLabel} ${sortState.direction === "asc" ? "^" : "v"}`
+              : baseLabel;
+          });
+        };
+
+        const applySort = () => {
+          const tbody = table.querySelector("tbody");
+          const sorted = [...rows].sort((a, b) => {
+            const aValue = a.dataset[sortState.key] || "";
+            const bValue = b.dataset[sortState.key] || "";
+            if (sortState.type === "number") {
+              return sortState.direction === "asc"
+                ? Number(aValue) - Number(bValue)
+                : Number(bValue) - Number(aValue);
+            }
+            return sortState.direction === "asc"
+              ? aValue.localeCompare(bValue)
+              : bValue.localeCompare(aValue);
+          });
+          sorted.forEach((row) => tbody.appendChild(row));
+          paintSortLabels();
+        };
+
+        const applyFilters = () => {
+          let count = 0;
+          let total = 0;
+
+          rows.forEach((row) => {
+            const show = filters.every((filter) => {
+              const rowValue = row.dataset[filter.dataset.filterKey] || "";
+              if (filter.dataset.filterMode === "text") {
+                return !filter.value || rowValue.includes(filter.value.trim().toLowerCase());
+              }
+
+              const counterpart = table.querySelector(
+                `[data-filter-key="${filter.dataset.filterKey}"][data-filter-mode="${filter.dataset.filterMode === "min" ? "max" : "min"}"]`
+              );
+              if (filter.dataset.filterMode === "min" && counterpart) {
+                return inRange(Number(rowValue || 0), filter.value, counterpart.value);
+              }
+              if (filter.dataset.filterMode === "max") {
+                return true;
+              }
+              return true;
+            });
+
+            row.style.display = show ? "" : "none";
+            if (show) {
+              count += 1;
+              total += Number(row.dataset.rowTotal || 0);
+            }
+          });
+
+          if (countNode) countNode.textContent = count;
+          if (totalNode) totalNode.textContent = formatCurrency(total);
+        };
+
+        sortButtons.forEach((button) => {
+          button.dataset.baseLabel = button.textContent;
+          button.addEventListener("click", () => {
+            const nextKey = button.dataset.sortKey;
+            const nextType = button.dataset.sortType;
+            if (sortState.key === nextKey) {
+              sortState.direction = sortState.direction === "asc" ? "desc" : "asc";
+            } else {
+              sortState = { key: nextKey, direction: nextType === "text" ? "asc" : "desc", type: nextType };
+            }
+            applySort();
+            applyFilters();
+          });
+        });
+
+        filters.forEach((filter) => {
+          filter.addEventListener("input", applyFilters);
+          filter.addEventListener("change", applyFilters);
+        });
+
+        toggleButton.addEventListener("click", () => {
+          const isHidden = panel.classList.contains("hidden");
+          panel.classList.toggle("hidden", !isHidden);
+          toggleButton.textContent = isHidden ? "Hide Table" : "Show Table";
+        });
+
+        resetButton.addEventListener("click", () => {
+          filters.forEach((filter) => {
+            filter.value = "";
+          });
+          rows.forEach((row) => setRowEditing(row, false));
+          sortState = { key: "id", direction: "desc", type: "number" };
+          applySort();
+          applyFilters();
+        });
+
+        applySort();
+        applyFilters();
+      });
+
+      document.querySelectorAll("table tbody tr[data-id]").forEach((row) => {
+        const editButton = row.querySelector(".row-edit-toggle");
+        const cancelButton = row.querySelector(".row-cancel-button");
+        const inputs = row.querySelectorAll(".table-input");
+        const initialValues = Array.from(inputs).map((input) => input.value);
+
+        if (!editButton || !cancelButton) return;
+        editButton.addEventListener("click", () => setRowEditing(row, true));
+        cancelButton.addEventListener("click", () => {
+          inputs.forEach((input, index) => {
+            input.value = initialValues[index];
+          });
+          setRowEditing(row, false);
+        });
+      });
+    })();
+  </script>
+{% endblock %}

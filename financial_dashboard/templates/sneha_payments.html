@@ -1,0 +1,289 @@
+{% extends "base.html" %}
+
+{% block title %}Sneha Payments | Financial Dashboard{% endblock %}
+
+{% block content %}
+  <section class="hero">
+    <div class="eyebrow">Sneha Schedule</div>
+    <h2>Monitor the payment schedule, total paid so far, and any known principal balance updates in one place.</h2>
+    <p>This page keeps the payment table hidden by default, while surfacing the most important repayment stats first.</p>
+    <div class="chip-row">
+      <span class="chip">{{ insights.entry_count }} payment rows</span>
+      <span class="chip">{{ format_currency(insights.total_paid) }} total paid</span>
+      <span class="chip">{{ format_currency(insights.paid_this_year) }} paid this year</span>
+    </div>
+  </section>
+
+  <section class="grid metrics">
+    <article class="card">
+      <div class="eyebrow">Total Paid</div>
+      <p class="metric">{{ format_currency(insights.total_paid) }}</p>
+      <div class="kpi-note">Total amount recorded across all Sneha payment rows.</div>
+    </article>
+    <article class="card">
+      <div class="eyebrow">Average Payment</div>
+      <p class="metric">{{ format_currency(insights.average_payment) }}</p>
+      <div class="kpi-note">Average payment size across the schedule.</div>
+    </article>
+    <article class="card">
+      <div class="eyebrow">Latest Payment</div>
+      <p class="metric">{% if insights.latest_payment %}{{ insights.latest_payment.payment_date }}{% else %}No data{% endif %}</p>
+      <div class="kpi-note">{% if insights.latest_payment %}{{ format_currency(insights.latest_payment.amount) }} was the latest recorded payment.{% endif %}</div>
+    </article>
+    <article class="card">
+      <div class="eyebrow">Known Balance</div>
+      <p class="metric">{% if insights.latest_balance %}{{ format_currency(insights.latest_balance.principal_balance) }}{% else %}No data{% endif %}</p>
+      <div class="kpi-note">{% if insights.latest_balance %}Last known principal balance from {{ insights.latest_balance.payment_date }}.{% endif %}</div>
+    </article>
+  </section>
+
+  <section class="split">
+    <article class="card">
+      <div class="eyebrow">Highest Payment</div>
+      <h3>Largest single payment</h3>
+      <div class="stack">
+        <div>
+          <strong>{% if insights.highest_payment %}{{ insights.highest_payment.payment_date }}{% else %}No data{% endif %}</strong>
+          <div class="kpi-note">
+            {% if insights.highest_payment %}
+              {{ format_currency(insights.highest_payment.amount) }} is the highest payment recorded.
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </article>
+
+    <article class="card">
+      <div class="eyebrow">Monthly Pattern</div>
+      <h3>Payment flow over time</h3>
+      <div class="progress">
+        {% for item in insights.payment_mix %}
+          <div class="progress-row">
+            <strong>{{ item.label }}</strong>
+            <div class="bar"><span style="width: {{ (item.amount / insights.largest_mix_value * 100) if insights.largest_mix_value else 0 }}%"></span></div>
+            <span>{{ format_currency(item.amount) }}</span>
+          </div>
+        {% else %}
+          <div class="muted">No Sneha payments available.</div>
+        {% endfor %}
+      </div>
+    </article>
+  </section>
+
+  <section class="card">
+    <div class="grid-header">
+      <div>
+        <div class="eyebrow">Payments Grid</div>
+        <h3 style="margin:0;">Sneha payments</h3>
+        <div class="kpi-note">Open the payment grid only when you need it, then filter, sort, and edit one row at a time.</div>
+      </div>
+      <div class="header-tools">
+        <span class="pill-stat"><strong id="table-visible-count">{{ rows|length }}</strong> visible rows</span>
+        <span class="pill-stat"><strong id="table-visible-total">{{ format_currency(insights.total_paid) }}</strong> visible paid amount</span>
+        <a class="btn secondary" href="{{ url_for('entity_create', entity_key=entity_key) }}">Add Payment</a>
+        <button type="button" id="toggle-table" class="btn">Show Table</button>
+        <button class="btn secondary" type="button" id="table-reset">Reset Grid</button>
+      </div>
+    </div>
+
+    <div class="table-wrap hidden" id="sneha-panel">
+      <table id="sneha-grid" class="sticky-head">
+        <thead>
+          <tr>
+            <th><button class="th-button" type="button" data-sort-key="id" data-sort-type="number">ID</button></th>
+            <th><button class="th-button" type="button" data-sort-key="payment_date" data-sort-type="text">Payment Date</button></th>
+            <th><button class="th-button" type="button" data-sort-key="amount" data-sort-type="number">Amount</button></th>
+            <th><button class="th-button" type="button" data-sort-key="principal_balance" data-sort-type="number">Principal Balance</button></th>
+            <th>Actions</th>
+          </tr>
+          <tr class="table-filter-row">
+            <th></th>
+            <th><input id="sneha-date-filter" type="search" placeholder="YYYY-MM-DD"></th>
+            <th><div style="display:grid; gap:8px;"><input id="sneha-amount-min" type="number" step="0.01" placeholder="Min"><input id="sneha-amount-max" type="number" step="0.01" placeholder="Max"></div></th>
+            <th><div style="display:grid; gap:8px;"><input id="sneha-balance-min" type="number" step="0.01" placeholder="Min"><input id="sneha-balance-max" type="number" step="0.01" placeholder="Max"></div></th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="sneha-body">
+          {% for row in rows %}
+            <tr data-id="{{ row.id }}" data-payment_date="{{ row.payment_date }}" data-amount="{{ row.amount }}" data-principal_balance="{{ row.principal_balance or 0 }}">
+              <td>
+                {{ row.id }}
+                <form id="sneha-row-{{ row.id }}" method="post" action="{{ url_for('entity_inline_update', entity_key=entity_key, row_id=row.id) }}"></form>
+              </td>
+              <td>
+                <span class="cell-view">{{ row.payment_date }}</span>
+                <input class="table-input hidden" type="date" name="payment_date" value="{{ row.payment_date }}" form="sneha-row-{{ row.id }}">
+              </td>
+              <td>
+                <span class="cell-view">{{ format_currency(row.amount) }}</span>
+                <input class="table-input hidden" type="number" step="0.01" name="amount" value="{{ row.amount }}" form="sneha-row-{{ row.id }}">
+              </td>
+              <td>
+                <span class="cell-view">{{ format_currency(row.principal_balance) if row.principal_balance is not none else '-' }}</span>
+                <input class="table-input hidden" type="number" step="0.01" name="principal_balance" value="{{ row.principal_balance if row.principal_balance is not none else '' }}" form="sneha-row-{{ row.id }}">
+              </td>
+              <td>
+                <div class="table-actions">
+                  <button type="button" class="btn secondary row-edit-toggle">Edit</button>
+                  <button type="submit" form="sneha-row-{{ row.id }}" class="hidden row-save-button">Save</button>
+                  <button type="button" class="btn secondary hidden row-cancel-button">Cancel</button>
+                  <form class="inline" method="post" action="{{ url_for('entity_delete', entity_key=entity_key, row_id=row.id) }}" onsubmit="return confirm('Delete this payment row?');">
+                    <button class="btn danger" type="submit">Delete</button>
+                  </form>
+                </div>
+              </td>
+            </tr>
+          {% else %}
+            <tr><td colspan="5">No Sneha payments available.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <script>
+    (() => {
+      const table = document.getElementById("sneha-grid");
+      if (!table) return;
+
+      const tbody = document.getElementById("sneha-body");
+      const toggleTableButton = document.getElementById("toggle-table");
+      const tablePanel = document.getElementById("sneha-panel");
+      const resetButton = document.getElementById("table-reset");
+      const visibleCount = document.getElementById("table-visible-count");
+      const visibleTotal = document.getElementById("table-visible-total");
+      const sortButtons = Array.from(table.querySelectorAll("[data-sort-key]"));
+      const rows = Array.from(tbody.querySelectorAll("tr[data-id]"));
+
+      const dateFilter = document.getElementById("sneha-date-filter");
+      const amountMin = document.getElementById("sneha-amount-min");
+      const amountMax = document.getElementById("sneha-amount-max");
+      const balanceMin = document.getElementById("sneha-balance-min");
+      const balanceMax = document.getElementById("sneha-balance-max");
+
+      let sortState = { key: "payment_date", direction: "asc", type: "text" };
+
+      const formatCurrency = (value) =>
+        `Rs. ${Number(value || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+      const inRange = (value, minElement, maxElement) => {
+        const min = minElement.value === "" ? null : Number(minElement.value);
+        const max = maxElement.value === "" ? null : Number(maxElement.value);
+        if (min !== null && value < min) return false;
+        if (max !== null && value > max) return false;
+        return true;
+      };
+
+      const paintSortLabels = () => {
+        sortButtons.forEach((button) => {
+          const baseLabel = button.dataset.baseLabel;
+          button.textContent = button.dataset.sortKey === sortState.key
+            ? `${baseLabel} ${sortState.direction === "asc" ? "^" : "v"}`
+            : baseLabel;
+        });
+      };
+
+      const applySort = () => {
+        const sorted = [...rows].sort((a, b) => {
+          const aValue = a.dataset[sortState.key] || "";
+          const bValue = b.dataset[sortState.key] || "";
+          if (sortState.type === "number") {
+            return sortState.direction === "asc"
+              ? Number(aValue) - Number(bValue)
+              : Number(bValue) - Number(aValue);
+          }
+          return sortState.direction === "asc"
+            ? aValue.localeCompare(bValue)
+            : bValue.localeCompare(aValue);
+        });
+        sorted.forEach((row) => tbody.appendChild(row));
+        paintSortLabels();
+      };
+
+      const applyFilters = () => {
+        let count = 0;
+        let total = 0;
+
+        rows.forEach((row) => {
+          const matchesDate = !dateFilter.value || String(row.dataset.payment_date || "").includes(dateFilter.value.trim());
+          const matchesAmount = inRange(Number(row.dataset.amount || 0), amountMin, amountMax);
+          const matchesBalance = inRange(Number(row.dataset.principal_balance || 0), balanceMin, balanceMax);
+          const show = matchesDate && matchesAmount && matchesBalance;
+
+          row.style.display = show ? "" : "none";
+          if (show) {
+            count += 1;
+            total += Number(row.dataset.amount || 0);
+          }
+        });
+
+        visibleCount.textContent = count;
+        visibleTotal.textContent = formatCurrency(total);
+      };
+
+      const setRowEditing = (row, editing) => {
+        row.classList.toggle("row-editing", editing);
+        row.querySelectorAll(".cell-view").forEach((element) => element.classList.toggle("hidden", editing));
+        row.querySelectorAll(".table-input").forEach((element) => element.classList.toggle("hidden", !editing));
+        row.querySelector(".row-edit-toggle").classList.toggle("hidden", editing);
+        row.querySelector(".row-save-button").classList.toggle("hidden", !editing);
+        row.querySelector(".row-cancel-button").classList.toggle("hidden", !editing);
+      };
+
+      rows.forEach((row) => {
+        const editButton = row.querySelector(".row-edit-toggle");
+        const cancelButton = row.querySelector(".row-cancel-button");
+        const inputs = row.querySelectorAll(".table-input");
+        const initialValues = Array.from(inputs).map((input) => input.value);
+
+        editButton.addEventListener("click", () => setRowEditing(row, true));
+        cancelButton.addEventListener("click", () => {
+          inputs.forEach((input, index) => {
+            input.value = initialValues[index];
+          });
+          setRowEditing(row, false);
+        });
+      });
+
+      sortButtons.forEach((button) => {
+        button.dataset.baseLabel = button.textContent;
+        button.addEventListener("click", () => {
+          const nextKey = button.dataset.sortKey;
+          const nextType = button.dataset.sortType;
+          if (sortState.key === nextKey) {
+            sortState.direction = sortState.direction === "asc" ? "desc" : "asc";
+          } else {
+            sortState = { key: nextKey, direction: nextType === "text" ? "asc" : "desc", type: nextType };
+          }
+          applySort();
+          applyFilters();
+        });
+      });
+
+      [dateFilter, amountMin, amountMax, balanceMin, balanceMax].forEach((element) => {
+        element.addEventListener("input", applyFilters);
+        element.addEventListener("change", applyFilters);
+      });
+
+      toggleTableButton.addEventListener("click", () => {
+        const isHidden = tablePanel.classList.contains("hidden");
+        tablePanel.classList.toggle("hidden", !isHidden);
+        toggleTableButton.textContent = isHidden ? "Hide Table" : "Show Table";
+      });
+
+      resetButton.addEventListener("click", () => {
+        [dateFilter, amountMin, amountMax, balanceMin, balanceMax].forEach((element) => {
+          element.value = "";
+        });
+        rows.forEach((row) => setRowEditing(row, false));
+        sortState = { key: "payment_date", direction: "asc", type: "text" };
+        applySort();
+        applyFilters();
+      });
+
+      applySort();
+      applyFilters();
+    })();
+  </script>
+{% endblock %}
