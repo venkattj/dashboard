@@ -121,7 +121,7 @@
         {% set active_entity = nav_key if nav_key is defined else (request.view_args.get('entity_key') if request.view_args else None) %}
         {% for key, item in entities.items() %}
           {% if key not in ['fixed_deposits', 'mutual_funds', 'utility_bills', 'earnings', 'variable_chits', 'variable_chit_payments'] %}
-            <a class="nav-link {% if active_entity == key %}active{% endif %}" href="{{ url_for('entity_list', entity_key=key) }}">{% if key == 'standard_chits' %}Chits{% elif key == 'bank_accounts' %}Banking & Deposits{% elif key == 'stocks' %}Stocks & Mutual Funds{% elif key == 'spending' %}Spending & Utility Bills{% elif key == 'loans' %}Capital & Earnings{% else %}{{ item.title }}{% endif %}</a>
+            <a class="nav-link {% if active_entity == key %}active{% endif %}" href="{% if key == 'bank_accounts' %}{{ url_for('bank_accounts_page') }}{% elif key == 'stocks' %}{{ url_for('stocks_page') }}{% elif key == 'spending' %}{{ url_for('spending_page') }}{% elif key == 'loans' %}{{ url_for('loans_page') }}{% else %}{{ url_for('entity_list', entity_key=key) }}{% endif %}">{% if key == 'standard_chits' %}Chits{% elif key == 'bank_accounts' %}Banking & Deposits{% elif key == 'stocks' %}Stocks & Mutual Funds{% elif key == 'spending' %}Spending & Utility Bills{% elif key == 'loans' %}Capital & Earnings{% else %}{{ item.title }}{% endif %}</a>
           {% endif %}
         {% endfor %}
       </div>

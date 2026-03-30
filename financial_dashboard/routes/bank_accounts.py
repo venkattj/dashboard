@@ -11,9 +11,10 @@ def register_bank_account_routes(
     app,
     entity_config: dict[str, Any],
     fetch_all: Callable[..., list],
+    fetch_one: Callable[..., dict | None],
     execute: Callable[..., None],
     as_float: Callable[[Any], float],
-    sync_bank_account_reference_data: Callable[[], None],
+    ensure_bank_account_entities: Callable[[str, str], tuple[int, int]],
 ) -> None:
     @app.get("/entity/bank_accounts", endpoint="bank_accounts_page")
     def bank_accounts_page() -> str:
@@ -30,11 +31,11 @@ def register_bank_account_routes(
             "balance": as_float(request.form.get("balance", "0")),
             "purpose": request.form.get("purpose", "").strip(),
         }
+        user_id, bank_id = ensure_bank_account_entities(values["account_holder"], values["bank_name"])
         execute(
-            "UPDATE bank_accounts SET account_holder = ?, bank_name = ?, balance = ?, purpose = ? WHERE id = ?",
-            (values["account_holder"], values["bank_name"], values["balance"], values["purpose"], row_id),
+            "UPDATE bank_accounts SET user_id = ?, bank_id = ?, balance = ?, purpose = ? WHERE id = ?",
+            (user_id, bank_id, values["balance"], values["purpose"], row_id),
         )
-        sync_bank_account_reference_data()
         flash("Bank account row updated.", "success")
 
         query_args = {

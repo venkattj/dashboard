@@ -28,37 +28,98 @@ def build_banking_workspace(
     fetch_all: Callable[..., list],
     as_float: Callable[[Any], float],
 ) -> dict[str, Any]:
-    bank_rows = fetch_all("SELECT * FROM bank_accounts ORDER BY balance DESC, id DESC")
-    fd_rows = fetch_all("SELECT * FROM fixed_deposits ORDER BY current_amount DESC, id DESC")
+    bank_rows = fetch_all(
+        """
+        SELECT
+            ba.id,
+            ba.user_id,
+            ba.bank_id,
+            u.full_name AS account_holder,
+            b.name AS bank_name,
+            ba.balance,
+            ba.purpose
+        FROM bank_accounts ba
+        LEFT JOIN users u ON u.id = ba.user_id
+        LEFT JOIN banks b ON b.id = ba.bank_id
+        ORDER BY ba.balance DESC, ba.id DESC
+        """
+    )
+    fd_rows = fetch_all(
+        """
+        SELECT
+            fd.*,
+            u.full_name AS account_holder,
+            b.name AS bank_name,
+            ba.purpose AS account_purpose,
+            CONCAT(COALESCE(u.full_name, 'Unknown'), ' / ', COALESCE(b.name, 'Unknown')) AS account_label,
+            CONCAT(COALESCE(u.full_name, 'Unknown'), ' / ', COALESCE(b.name, 'Unknown')) AS bank
+        FROM fixed_deposits fd
+        LEFT JOIN bank_accounts ba ON ba.id = fd.account_id
+        LEFT JOIN users u ON u.id = ba.user_id
+        LEFT JOIN banks b ON b.id = ba.bank_id
+        ORDER BY fd.current_amount DESC, fd.id DESC
+        """
+    )
 
     bank_total = sum(as_float(row["balance"]) for row in bank_rows)
     fd_total = sum(as_float(row["current_amount"]) for row in fd_rows)
     fd_invested = sum(as_float(row["invested"]) for row in fd_rows)
-    soon_maturing = sum(1 for row in fd_rows if as_float(row["days_to_mature"]) <= 120)
     low_balance_count = sum(1 for row in bank_rows if as_float(row["balance"]) < 5000)
+    soon_maturing = sum(1 for row in fd_rows if 0 <= as_float(row["days_to_mature"]) <= 120)
+    maturing_30 = sum(1 for row in fd_rows if 0 <= as_float(row["days_to_mature"]) <= 30)
+    maturing_90 = sum(1 for row in fd_rows if 0 <= as_float(row["days_to_mature"]) <= 90)
     top_account = max(bank_rows, key=lambda row: as_float(row["balance"]), default=None)
     top_fd = max(fd_rows, key=lambda row: as_float(row["current_amount"]), default=None)
+    next_maturity = min(
+        (row for row in fd_rows if as_float(row["days_to_mature"]) >= 0),
+        key=lambda row: as_float(row["days_to_mature"]),
+        default=None,
+    )
     average_fd_rate = (
         sum(as_float(row["interest_rate"]) for row in fd_rows) / len(fd_rows)
         if fd_rows
         else 0
     )
+    weighted_fd_rate = (
+        sum(as_float(row["interest_rate"]) * as_float(row["current_amount"]) for row in fd_rows) / fd_total
+        if fd_total
+        else 0
+    )
+    average_bank_balance = (bank_total / len(bank_rows)) if bank_rows else 0
+    liquidity_ratio = ((bank_total / (bank_total + fd_total)) * 100) if (bank_total + fd_total) else 0
+
+    holder_totals: dict[str, float] = {}
+    bank_totals: dict[str, float] = {}
+    fd_account_totals: dict[str, float] = {}
+    for row in bank_rows:
+        holder = row["account_holder"] or "Unknown"
+        bank = row["bank_name"] or "Unknown"
+        holder_totals[holder] = holder_totals.get(holder, 0.0) + as_float(row["balance"])
+        bank_totals[bank] = bank_totals.get(bank, 0.0) + as_float(row["balance"])
+    for row in fd_rows:
+        label = row["account_label"] or "Unknown"
+        fd_account_totals[label] = fd_account_totals.get(label, 0.0) + as_float(row["current_amount"])
+
+    top_holder_name, top_holder_total = max(holder_totals.items(), key=lambda item: item[1], default=("No data", 0.0))
+    top_bank_name, top_bank_total = max(bank_totals.items(), key=lambda item: item[1], default=("No data", 0.0))
+    top_fd_account_name, top_fd_account_total = max(fd_account_totals.items(), key=lambda item: item[1], default=("No data", 0.0))
 
     return {
         "page_title": "Banking & Deposits",
         "eyebrow": "Cash Workspace",
-        "heading": "Manage liquid balances and fixed deposits together from one banking view.",
-        "description": "This workspace brings cash accounts and fixed deposits into one place so you can understand liquidity, parked capital, and maturity exposure without switching screens.",
+        "heading": "See liquid cash, maturity runway, and parked deposits from one banking command view.",
+        "description": "This workspace combines operating balances with fixed deposits so you can judge liquidity, rollover pressure, and concentration by holder, bank, and linked deposit account in one place.",
         "chips": [
             {"label": f"{len(bank_rows)} bank accounts"},
+            {"label": f"{len(bank_totals)} banks covered"},
             {"label": f"{len(fd_rows)} fixed deposits"},
-            {"label": f"{soon_maturing} FDs maturing soon"},
+            {"label": f"{maturing_30} FDs due in 30 days"},
         ],
         "metrics": [
-            {"label": "Bank Balance", "value": bank_total, "note": "Immediately available cash across accounts."},
-            {"label": "FD Current Value", "value": fd_total, "note": "Current value across all fixed deposits."},
-            {"label": "Combined Cash Base", "value": bank_total + fd_total, "note": "Bank balances plus fixed deposits."},
-            {"label": "FD Gain", "value": fd_total - fd_invested, "note": "Current FD value minus invested principal."},
+            {"label": "Available Cash", "value": bank_total, "note": f"Average balance Rs. {average_bank_balance:,.2f} across {len(bank_rows)} active accounts."},
+            {"label": "FD Book Value", "value": fd_total, "note": f"{len(fd_rows)} deposits currently worth Rs. {fd_total:,.2f}."},
+            {"label": "Total Treasury", "value": bank_total + fd_total, "note": f"Liquidity mix is {liquidity_ratio:,.1f}% bank balance and {100 - liquidity_ratio:,.1f}% fixed deposits."},
+            {"label": "Locked-In Gain", "value": fd_total - fd_invested, "note": f"Weighted FD rate is {weighted_fd_rate:,.2f}% with {maturing_90} deposits due inside 90 days."},
         ],
         "sections": [
             _section(
@@ -70,8 +131,9 @@ def build_banking_workspace(
                 "balance",
                 [
                     {"label": "Top account", "value": top_account["bank_name"] if top_account else "No data", "note": f"{top_account['account_holder']} · Rs. {as_float(top_account['balance']):,.2f}" if top_account else "No balances available."},
-                    {"label": "Low balance count", "value": low_balance_count, "note": "Accounts below Rs. 5,000."},
-                    {"label": "Banks covered", "value": len({row['bank_name'] for row in bank_rows}), "note": "Distinct banking institutions."},
+                    {"label": "Top holder", "value": top_holder_name, "note": f"Rs. {top_holder_total:,.2f} across linked accounts."},
+                    {"label": "Top bank exposure", "value": top_bank_name, "note": f"Rs. {top_bank_total:,.2f} parked with this bank."},
+                    {"label": "Low balance count", "value": low_balance_count, "note": "Accounts below Rs. 5,000 and likely used mainly for routing, pension, or SIP debits."},
                 ],
             ),
             _section(
@@ -82,9 +144,10 @@ def build_banking_workspace(
                 "visible FD value",
                 "current_amount",
                 [
-                    {"label": "Top FD", "value": top_fd["bank"] if top_fd else "No data", "note": f"Rs. {as_float(top_fd['current_amount']):,.2f}" if top_fd else "No FD records available."},
-                    {"label": "Average rate", "value": f"{average_fd_rate:,.2f}%", "note": "Average interest rate across deposits."},
-                    {"label": "Maturing soon", "value": soon_maturing, "note": "Deposits due within 120 days."},
+                    {"label": "Top FD", "value": top_fd["account_label"] if top_fd else "No data", "note": f"Rs. {as_float(top_fd['current_amount']):,.2f}" if top_fd else "No FD records available."},
+                    {"label": "Next maturity", "value": next_maturity["account_label"] if next_maturity else "No data", "note": f"{int(as_float(next_maturity['days_to_mature']))} days left · matures on {next_maturity['maturity_date']}" if next_maturity else "No active FD maturities available."},
+                    {"label": "Average rate", "value": f"{average_fd_rate:,.2f}%", "note": f"Simple average across {len(fd_rows)} deposits."},
+                    {"label": "Largest linked account", "value": top_fd_account_name, "note": f"Rs. {top_fd_account_total:,.2f} total FD value linked to this operating account."},
                 ],
             ),
         ],

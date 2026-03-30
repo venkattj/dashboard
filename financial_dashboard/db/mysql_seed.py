@@ -73,14 +73,12 @@ TABLE_DEFINITIONS = {
         "`id` INT PRIMARY KEY AUTO_INCREMENT",
         "`user_id` INT NULL",
         "`bank_id` INT NULL",
-        "`account_holder` VARCHAR(255) NOT NULL",
-        "`bank_name` VARCHAR(255) NOT NULL",
         "`balance` DOUBLE NOT NULL DEFAULT 0",
         "`purpose` VARCHAR(255) NULL",
     ],
     "fixed_deposits": [
         "`id` INT PRIMARY KEY AUTO_INCREMENT",
-        "`bank` VARCHAR(255) NOT NULL",
+        "`account_id` INT NULL",
         "`invested` DOUBLE NOT NULL DEFAULT 0",
         "`interest_rate` DOUBLE NOT NULL DEFAULT 0",
         "`maturity_date` DATE NULL",
@@ -102,10 +100,6 @@ TABLE_DEFINITIONS = {
     "mutual_funds": [
         "`id` INT PRIMARY KEY AUTO_INCREMENT",
         "`fund_name` VARCHAR(255) NOT NULL",
-        "`scheme_code` VARCHAR(32) NULL",
-        "`units` DOUBLE NULL",
-        "`latest_nav` DOUBLE NULL",
-        "`nav_date` DATE NULL",
         "`invested` DOUBLE NOT NULL DEFAULT 0",
         "`returns_pct` DOUBLE NOT NULL DEFAULT 0",
         "`sip` DOUBLE NOT NULL DEFAULT 0",
@@ -264,15 +258,85 @@ def read_workbook(path: Path) -> dict[str, list[list[str]]]:
 def parse_workbook_rows(path: Path) -> dict[str, list[dict[str, Any]]]:
     sheets = read_workbook(path)
     dataset = {name: [] for name in TABLE_DEFINITIONS}
+    user_name_by_sheet_id: dict[int, str] = {}
+    bank_name_by_sheet_id: dict[int, str] = {}
 
-    for row in sheets.get("Bank", [])[1:]:
-        if len(row) >= 5 and is_number(row[0]):
+    user_rows = sheets.get("Users", [])
+    if user_rows:
+        headers = [str(value).strip() for value in user_rows[0]]
+        supported_user_columns = {
+            "full_name",
+            "username",
+            "email",
+            "password_hash",
+            "zerodha_api_key",
+            "zerodha_api_secret",
+            "zerodha_access_token",
+            "zerodha_public_token",
+            "zerodha_user_id",
+            "zerodha_user_name",
+            "zerodha_token_expires_at",
+            "zerodha_connected_at",
+            "zerodha_last_sync_at",
+            "created_at",
+        }
+        for row in user_rows[1:]:
+            if not row or not any(str(cell).strip() for cell in row):
+                continue
+            values = {headers[idx]: row[idx] if idx < len(row) else "" for idx in range(len(headers))}
+            full_name = str(values.get("full_name", "")).strip()
+            if not full_name:
+                continue
+            raw_id = str(values.get("id", "")).strip()
+            if raw_id.isdigit():
+                user_name_by_sheet_id[int(raw_id)] = full_name
+            dataset["users"].append(
+                {
+                    column: values.get(column, "")
+                    for column in headers
+                    if column in supported_user_columns
+                }
+            )
+
+    bank_master_rows = sheets.get("Banks", [])
+    if bank_master_rows:
+        headers = [str(value).strip() for value in bank_master_rows[0]]
+        for row in bank_master_rows[1:]:
+            if not row or not any(str(cell).strip() for cell in row):
+                continue
+            values = {headers[idx]: row[idx] if idx < len(row) else "" for idx in range(len(headers))}
+            bank_name = str(values.get("name", "")).strip()
+            if not bank_name:
+                continue
+            raw_id = str(values.get("id", "")).strip()
+            if raw_id.isdigit():
+                bank_name_by_sheet_id[int(raw_id)] = bank_name
+            dataset["banks"].append({"name": bank_name})
+
+    bank_account_rows = sheets.get("bank_accounts", [])
+    if bank_account_rows:
+        headers = [str(value).strip() for value in bank_account_rows[0]]
+        for row in bank_account_rows[1:]:
+            if not row or not any(str(cell).strip() for cell in row):
+                continue
+            values = {headers[idx]: row[idx] if idx < len(row) else "" for idx in range(len(headers))}
+            raw_user_id = str(values.get("user_id", "")).strip()
+            raw_bank_id = str(values.get("bank_id", "")).strip()
+            balance = values.get("balance", "")
+            if not raw_user_id or not raw_bank_id or not is_number(balance):
+                continue
+            user_id = int(raw_user_id) if raw_user_id.isdigit() else None
+            bank_id = int(raw_bank_id) if raw_bank_id.isdigit() else None
+            account_holder = user_name_by_sheet_id.get(user_id or 0, "")
+            bank_name = bank_name_by_sheet_id.get(bank_id or 0, "")
+            if not account_holder or not bank_name:
+                continue
             dataset["bank_accounts"].append(
                 {
-                    "account_holder": row[1],
-                    "bank_name": row[2],
-                    "balance": as_float(row[3]),
-                    "purpose": row[4],
+                    "user_id": user_id,
+                    "bank_id": bank_id,
+                    "balance": as_float(balance),
+                    "purpose": str(values.get("purpose", "")).strip(),
                 }
             )
 
@@ -280,7 +344,7 @@ def parse_workbook_rows(path: Path) -> dict[str, list[dict[str, Any]]]:
         if len(row) >= 9 and is_number(row[0]):
             dataset["fixed_deposits"].append(
                 {
-                    "bank": row[1],
+                    "account_id": as_int(row[1]),
                     "invested": as_float(row[2]),
                     "interest_rate": as_float(row[3]),
                     "maturity_date": row[4],
@@ -291,7 +355,20 @@ def parse_workbook_rows(path: Path) -> dict[str, list[dict[str, Any]]]:
             )
 
     for row in sheets.get("Stocks", [])[1:]:
-        if len(row) >= 5 and row[1] and row[1] != "Summary":
+        if len(row) >= 8 and row[1] and row[1] != "Summary":
+            if is_number(row[4]) and is_number(row[5]) and is_number(row[6]):
+                dataset["stocks"].append(
+                    {
+                        "symbol": row[1],
+                        "exchange": row[2],
+                        "isin": row[3],
+                        "average_price": as_float(row[4]),
+                        "current_price": as_float(row[5]),
+                        "quantity": as_float(row[6]),
+                        "source": row[7] or "manual",
+                    }
+                )
+        elif len(row) >= 5 and row[1] and row[1] != "Summary":
             if is_number(row[2]) and is_number(row[3]) and is_number(row[4]):
                 dataset["stocks"].append(
                     {
@@ -299,6 +376,7 @@ def parse_workbook_rows(path: Path) -> dict[str, list[dict[str, Any]]]:
                         "average_price": as_float(row[2]),
                         "current_price": as_float(row[3]),
                         "quantity": as_float(row[4]),
+                        "source": "manual",
                     }
                 )
 
@@ -448,8 +526,8 @@ def create_tables() -> None:
                 cur.execute(ddl)
             ensure_user_auth_columns(cur)
             ensure_bank_account_reference_columns(cur)
+            ensure_fixed_deposit_reference_columns(cur)
             ensure_stock_sync_columns(cur)
-            ensure_mutual_fund_sync_columns(cur)
             sync_bank_account_reference_data(cur)
 
 
@@ -551,6 +629,13 @@ def ensure_bank_account_reference_columns(cur) -> None:
             """
         )
 
+    sync_bank_account_reference_data(cur)
+
+    if _column_exists(cur, "bank_accounts", "account_holder"):
+        cur.execute("ALTER TABLE `bank_accounts` DROP COLUMN `account_holder`")
+    if _column_exists(cur, "bank_accounts", "bank_name"):
+        cur.execute("ALTER TABLE `bank_accounts` DROP COLUMN `bank_name`")
+
 
 def ensure_stock_sync_columns(cur) -> None:
     if not _column_exists(cur, "stocks", "exchange"):
@@ -563,46 +648,59 @@ def ensure_stock_sync_columns(cur) -> None:
         cur.execute("ALTER TABLE `stocks` ADD COLUMN `last_synced_price_at` DATETIME NULL AFTER `source`")
 
 
-def ensure_mutual_fund_sync_columns(cur) -> None:
-    if not _column_exists(cur, "mutual_funds", "scheme_code"):
-        cur.execute("ALTER TABLE `mutual_funds` ADD COLUMN `scheme_code` VARCHAR(32) NULL AFTER `fund_name`")
-    if not _column_exists(cur, "mutual_funds", "units"):
-        cur.execute("ALTER TABLE `mutual_funds` ADD COLUMN `units` DOUBLE NULL AFTER `scheme_code`")
-    if not _column_exists(cur, "mutual_funds", "latest_nav"):
-        cur.execute("ALTER TABLE `mutual_funds` ADD COLUMN `latest_nav` DOUBLE NULL AFTER `units`")
-    if not _column_exists(cur, "mutual_funds", "nav_date"):
-        cur.execute("ALTER TABLE `mutual_funds` ADD COLUMN `nav_date` DATE NULL AFTER `latest_nav`")
+def ensure_fixed_deposit_reference_columns(cur) -> None:
+    if not _column_exists(cur, "fixed_deposits", "account_id"):
+        cur.execute("ALTER TABLE `fixed_deposits` ADD COLUMN `account_id` INT NULL AFTER `id`")
+
+    if not _index_exists(cur, "fixed_deposits", "idx_fixed_deposits_account_id"):
+        cur.execute("ALTER TABLE `fixed_deposits` ADD INDEX `idx_fixed_deposits_account_id` (`account_id`)")
+
+    if not _constraint_exists(cur, "fixed_deposits", "fk_fixed_deposits_account"):
+        cur.execute(
+            """
+            ALTER TABLE `fixed_deposits`
+            ADD CONSTRAINT `fk_fixed_deposits_account`
+            FOREIGN KEY (`account_id`) REFERENCES `bank_accounts`(`id`)
+            ON UPDATE CASCADE ON DELETE SET NULL
+            """
+        )
+
+    if _column_exists(cur, "fixed_deposits", "bank"):
+        cur.execute("ALTER TABLE `fixed_deposits` DROP COLUMN `bank`")
 
 
 def sync_bank_account_reference_data(cur) -> None:
-    cur.execute(
-        """
-        INSERT INTO `users` (`full_name`)
-        SELECT DISTINCT TRIM(`account_holder`)
-        FROM `bank_accounts`
-        WHERE TRIM(COALESCE(`account_holder`, '')) <> ''
-        ON DUPLICATE KEY UPDATE `full_name` = VALUES(`full_name`)
-        """
-    )
-    cur.execute(
-        """
-        INSERT INTO `banks` (`name`)
-        SELECT DISTINCT TRIM(`bank_name`)
-        FROM `bank_accounts`
-        WHERE TRIM(COALESCE(`bank_name`, '')) <> ''
-        ON DUPLICATE KEY UPDATE `name` = VALUES(`name`)
-        """
-    )
-    cur.execute(
-        """
-        UPDATE `bank_accounts` ba
-        LEFT JOIN `users` u ON u.`full_name` = TRIM(ba.`account_holder`)
-        LEFT JOIN `banks` b ON b.`name` = TRIM(ba.`bank_name`)
-        SET
-            ba.`user_id` = u.`id`,
-            ba.`bank_id` = b.`id`
-        """
-    )
+    if _column_exists(cur, "bank_accounts", "account_holder"):
+        cur.execute(
+            """
+            INSERT INTO `users` (`full_name`)
+            SELECT DISTINCT TRIM(`account_holder`)
+            FROM `bank_accounts`
+            WHERE TRIM(COALESCE(`account_holder`, '')) <> ''
+            ON DUPLICATE KEY UPDATE `full_name` = VALUES(`full_name`)
+            """
+        )
+    if _column_exists(cur, "bank_accounts", "bank_name"):
+        cur.execute(
+            """
+            INSERT INTO `banks` (`name`)
+            SELECT DISTINCT TRIM(`bank_name`)
+            FROM `bank_accounts`
+            WHERE TRIM(COALESCE(`bank_name`, '')) <> ''
+            ON DUPLICATE KEY UPDATE `name` = VALUES(`name`)
+            """
+        )
+    if _column_exists(cur, "bank_accounts", "account_holder") and _column_exists(cur, "bank_accounts", "bank_name"):
+        cur.execute(
+            """
+            UPDATE `bank_accounts` ba
+            LEFT JOIN `users` u ON u.`full_name` = TRIM(ba.`account_holder`)
+            LEFT JOIN `banks` b ON b.`name` = TRIM(ba.`bank_name`)
+            SET
+                ba.`user_id` = COALESCE(ba.`user_id`, u.`id`),
+                ba.`bank_id` = COALESCE(ba.`bank_id`, b.`id`)
+            """
+        )
 
 
 def truncate_tables() -> None:

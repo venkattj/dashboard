@@ -25,7 +25,7 @@ def register_fixed_deposit_routes(
     @app.post("/entity/fixed_deposits/<int:row_id>/inline-update", endpoint="fixed_deposit_inline_update")
     def fixed_deposit_inline_update(row_id: int):
         values = {
-            "bank": request.form.get("bank", "").strip(),
+            "account_id": as_int(request.form.get("account_id", "0")),
             "invested": as_float(request.form.get("invested", "0")),
             "interest_rate": as_float(request.form.get("interest_rate", "0")),
             "maturity_date": request.form.get("maturity_date", "").strip(),
@@ -34,9 +34,9 @@ def register_fixed_deposit_routes(
             "days_to_mature": as_int(request.form.get("days_to_mature", "0")),
         }
         execute(
-            "UPDATE fixed_deposits SET bank = ?, invested = ?, interest_rate = ?, maturity_date = ?, created_date = ?, current_amount = ?, days_to_mature = ? WHERE id = ?",
+            "UPDATE fixed_deposits SET account_id = ?, invested = ?, interest_rate = ?, maturity_date = ?, created_date = ?, current_amount = ?, days_to_mature = ? WHERE id = ?",
             (
-                values["bank"],
+                values["account_id"],
                 values["invested"],
                 values["interest_rate"],
                 values["maturity_date"],

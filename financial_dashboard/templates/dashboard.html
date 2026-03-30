@@ -44,12 +44,13 @@
       <h3>Manage the live in-memory dataset</h3>
       <p class="muted">Open any section below to add, edit, or remove records without touching the original workbook until you choose to reload.</p>
       <div class="actions">
-        <a class="btn secondary" href="{{ url_for('entity_list', entity_key='bank_accounts') }}">Banks</a>
+        <a class="btn secondary" href="{{ url_for('bank_accounts_page') }}">Banks</a>
         <a class="btn secondary" href="{{ url_for('entity_list', entity_key='fixed_deposits') }}">Fixed Deposits</a>
         <a class="btn secondary" href="{{ url_for('entity_list', entity_key='earnings') }}">Earnings</a>
-        <a class="btn secondary" href="{{ url_for('entity_list', entity_key='spending') }}">Spending</a>
-        <a class="btn secondary" href="{{ url_for('entity_list', entity_key='loans') }}">Loans</a>
-        <a class="btn secondary" href="{{ url_for('entity_list', entity_key='stocks') }}">Stocks</a>
+        <a class="btn secondary" href="{{ url_for('spending_page') }}">Spending</a>
+        <a class="btn secondary" href="{{ url_for('loans_page') }}">Loans</a>
+        <a class="btn secondary" href="{{ url_for('stocks_page') }}">Stocks</a>
+        <a class="btn secondary" href="{{ url_for('mutual_funds_page') }}">Mutual Funds</a>
       </div>
     </article>
   </section>

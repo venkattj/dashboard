@@ -15,12 +15,7 @@ def register_mutual_funds_routes(
 ) -> None:
     @app.get("/entity/mutual_funds", endpoint="mutual_funds_page")
     def mutual_funds_page() -> str:
-        workspace = build_markets_workspace(entity_config=entity_config, fetch_all=fetch_all, as_float=as_float)
         return render_template(
             "paired_workspace.html",
-            integration_panel={
-                "provider": "AMFI",
-                "mode": "mutual_funds",
-            },
-            **workspace,
+            **build_markets_workspace(entity_config=entity_config, fetch_all=fetch_all, as_float=as_float),
         )

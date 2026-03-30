@@ -87,24 +87,6 @@
     </section>
   {% endif %}
 
-  {% if integration_panel and integration_panel.mode == "mutual_funds" %}
-    <section class="card">
-      <div class="grid-header">
-        <div>
-          <div class="eyebrow">NAV Sync</div>
-          <h3 style="margin:0;">AMFI Mutual Fund Refresh</h3>
-          <div class="kpi-note">Maintain `AMFI scheme code` and `units` for each fund, then use this action to refresh latest NAV, NAV date, current value, and returns.</div>
-        </div>
-        <div class="header-tools">
-          <form method="post" action="{{ url_for('amfi_sync_mutual_funds') }}" class="inline">
-            <button type="submit">Sync AMFI NAV</button>
-          </form>
-        </div>
-      </div>
-      <div class="footer-note" style="margin-top:16px;">AMFI publishes mutual fund NAVs daily, so this sync is intended for end-of-day refresh rather than intraday pricing.</div>
-    </section>
-  {% endif %}
-
   {% for section in sections %}
     <section class="card">
       <div class="grid-header">

@@ -72,7 +72,7 @@ ENTITY_CONFIG = {
         "description": "Track maturity dates, invested principal, and current value.",
         "table": "fixed_deposits",
         "columns": [
-            {"name": "bank", "label": "Bank", "type": "text"},
+            {"name": "account_id", "label": "Account ID", "type": "number", "step": "1"},
             {"name": "invested", "label": "Invested", "type": "number", "step": "0.01"},
             {"name": "interest_rate", "label": "Interest Rate %", "type": "number", "step": "0.01"},
             {"name": "maturity_date", "label": "Maturity Date", "type": "date"},
@@ -102,10 +102,6 @@ ENTITY_CONFIG = {
         "table": "mutual_funds",
         "columns": [
             {"name": "fund_name", "label": "Fund Name", "type": "text"},
-            {"name": "scheme_code", "label": "AMFI Scheme Code", "type": "text"},
-            {"name": "units", "label": "Units", "type": "number", "step": "0.0001"},
-            {"name": "latest_nav", "label": "Latest NAV", "type": "number", "step": "0.0001"},
-            {"name": "nav_date", "label": "NAV Date", "type": "date"},
             {"name": "invested", "label": "Invested", "type": "number", "step": "0.01"},
             {"name": "returns_pct", "label": "Returns %", "type": "number", "step": "0.01"},
             {"name": "sip", "label": "Monthly SIP", "type": "number", "step": "0.01"},
@@ -322,36 +318,47 @@ def execute(query: str, params: tuple[Any, ...] = ()) -> None:
 
 
 def sync_bank_account_reference_data() -> None:
-    with get_connection() as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                """
-                INSERT INTO users (full_name)
-                SELECT DISTINCT TRIM(account_holder)
-                FROM bank_accounts
-                WHERE TRIM(COALESCE(account_holder, '')) <> ''
-                ON DUPLICATE KEY UPDATE full_name = VALUES(full_name)
-                """
-            )
-            cur.execute(
-                """
-                INSERT INTO banks (name)
-                SELECT DISTINCT TRIM(bank_name)
-                FROM bank_accounts
-                WHERE TRIM(COALESCE(bank_name, '')) <> ''
-                ON DUPLICATE KEY UPDATE name = VALUES(name)
-                """
-            )
-            cur.execute(
-                """
-                UPDATE bank_accounts ba
-                LEFT JOIN users u ON u.full_name = TRIM(ba.account_holder)
-                LEFT JOIN banks b ON b.name = TRIM(ba.bank_name)
-                SET
-                    ba.user_id = u.id,
-                    ba.bank_id = b.id
-                """
-            )
+    return None
+
+
+def fetch_bank_account_rows(order_by: str = "ba.balance DESC, ba.id DESC") -> list[dict[str, Any]]:
+    return fetch_all(
+        f"""
+        SELECT
+            ba.id,
+            ba.user_id,
+            ba.bank_id,
+            u.full_name AS account_holder,
+            b.name AS bank_name,
+            ba.balance,
+            ba.purpose
+        FROM bank_accounts ba
+        LEFT JOIN users u ON u.id = ba.user_id
+        LEFT JOIN banks b ON b.id = ba.bank_id
+        ORDER BY {order_by}
+        """
+    )
+
+
+def ensure_bank_account_entities(account_holder: str, bank_name: str) -> tuple[int, int]:
+    holder = normalize_text(account_holder)
+    bank = normalize_text(bank_name)
+    if not holder or not bank:
+        raise ValueError("Account holder and bank name are required.")
+
+    user = fetch_one("SELECT id FROM users WHERE full_name = ?", (holder,))
+    if user is None:
+        execute("INSERT INTO users (full_name) VALUES (?)", (holder,))
+        user = fetch_one("SELECT id FROM users WHERE full_name = ?", (holder,))
+
+    bank_row = fetch_one("SELECT id FROM banks WHERE name = ?", (bank,))
+    if bank_row is None:
+        execute("INSERT INTO banks (name) VALUES (?)", (bank,))
+        bank_row = fetch_one("SELECT id FROM banks WHERE name = ?", (bank,))
+
+    if user is None or bank_row is None:
+        raise ValueError("Could not resolve bank account references.")
+    return user["id"], bank_row["id"]
 
 
 def format_currency(value: float | None) -> str:
@@ -624,9 +631,9 @@ def fetch_zerodha_holdings(api_key: str, access_token: str) -> list[dict[str, An
 
 
 def sync_zerodha_holdings_to_stocks(user_id: int) -> int:
-    user = get_current_user()
+    user = fetch_one("SELECT * FROM users WHERE id = ?", (user_id,))
     if user is None:
-        raise ValueError("No logged-in user found.")
+        raise ValueError("No matching user found.")
     api_key = normalize_text(user.get("zerodha_api_key"))
     access_token = normalize_text(user.get("zerodha_access_token"))
     if not api_key or not access_token:
@@ -634,24 +641,94 @@ def sync_zerodha_holdings_to_stocks(user_id: int) -> int:
 
     holdings = fetch_zerodha_holdings(api_key, access_token)
     synced_at = current_timestamp_string()
-    execute("DELETE FROM stocks WHERE source = ?", ("zerodha",))
+    existing_rows = fetch_all(
+        """
+        SELECT id, symbol, exchange, isin
+        FROM stocks
+        WHERE source = ?
+        ORDER BY id
+        """,
+        ("zerodha",),
+    )
+    existing_by_isin = {
+        normalize_text(row.get("isin")): row
+        for row in existing_rows
+        if normalize_text(row.get("isin"))
+    }
+    existing_by_symbol_exchange = {
+        (normalize_text(row.get("symbol")), normalize_text(row.get("exchange"))): row
+        for row in existing_rows
+    }
+    seen_ids: set[int] = set()
+
     for holding in holdings:
+        symbol = normalize_text(holding.get("tradingsymbol"))
+        exchange = normalize_text(holding.get("exchange"))
+        isin = normalize_text(holding.get("isin"))
+        average_price = as_float(holding.get("average_price"))
+        current_price = as_float(holding.get("last_price"))
+        quantity = as_float(holding.get("quantity"))
+
+        existing_row = None
+        if isin:
+            existing_row = existing_by_isin.get(isin)
+        if existing_row is None:
+            existing_row = existing_by_symbol_exchange.get((symbol, exchange))
+
+        if existing_row is not None:
+            execute(
+                """
+                UPDATE stocks
+                SET symbol = ?, exchange = ?, isin = ?, average_price = ?, current_price = ?, quantity = ?, source = ?, last_synced_price_at = ?
+                WHERE id = ?
+                """,
+                (
+                    symbol,
+                    exchange,
+                    isin,
+                    average_price,
+                    current_price,
+                    quantity,
+                    "zerodha",
+                    synced_at,
+                    existing_row["id"],
+                ),
+            )
+            seen_ids.add(existing_row["id"])
+            continue
+
         execute(
             """
             INSERT INTO stocks (symbol, exchange, isin, average_price, current_price, quantity, source, last_synced_price_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
-                normalize_text(holding.get("tradingsymbol")),
-                normalize_text(holding.get("exchange")),
-                normalize_text(holding.get("isin")),
-                as_float(holding.get("average_price")),
-                as_float(holding.get("last_price")),
-                as_float(holding.get("quantity")),
+                symbol,
+                exchange,
+                isin,
+                average_price,
+                current_price,
+                quantity,
                 "zerodha",
                 synced_at,
             ),
         )
+        inserted_row = fetch_one(
+            """
+            SELECT id
+            FROM stocks
+            WHERE source = ? AND symbol = ? AND exchange = ?
+            ORDER BY id DESC
+            LIMIT 1
+            """,
+            ("zerodha", symbol, exchange),
+        )
+        if inserted_row is not None:
+            seen_ids.add(inserted_row["id"])
+
+    stale_ids = [row["id"] for row in existing_rows if row["id"] not in seen_ids]
+    for stale_id in stale_ids:
+        execute("DELETE FROM stocks WHERE id = ?", (stale_id,))
 
     execute(
         "UPDATE users SET zerodha_last_sync_at = ? WHERE id = ?",
@@ -660,104 +737,36 @@ def sync_zerodha_holdings_to_stocks(user_id: int) -> int:
     return len(holdings)
 
 
-def parse_amfi_nav_feed(feed_text: str) -> dict[str, dict[str, str]]:
-    nav_by_scheme: dict[str, dict[str, str]] = {}
-    for raw_line in feed_text.splitlines():
-        line = raw_line.strip()
-        if not line or ";" not in line:
-            continue
-        parts = [part.strip() for part in line.split(";")]
-        if len(parts) < 8:
-            continue
-        scheme_code = parts[0]
-        nav_value = parts[4]
-        scheme_name = parts[3]
-        nav_date = parts[7]
-        if not scheme_code.isdigit():
-            continue
-        try:
-            float(nav_value)
-        except ValueError:
-            continue
-        nav_by_scheme[scheme_code] = {
-            "scheme_code": scheme_code,
-            "scheme_name": scheme_name,
-            "nav": nav_value,
-            "nav_date": nav_date,
-        }
-    return nav_by_scheme
-
-
-def fetch_amfi_nav_data() -> dict[str, dict[str, str]]:
-    request_obj = Request(
-        "https://portal.amfiindia.com/spages/NAVAll.txt",
-        headers={"User-Agent": "Mozilla/5.0"},
-        method="GET",
-    )
-    try:
-        with urlopen(request_obj, timeout=20) as response:
-            feed_text = response.read().decode("utf-8", errors="replace")
-    except URLError as exc:
-        raise ValueError(f"Could not fetch AMFI NAV feed: {exc.reason}") from exc
-    return parse_amfi_nav_feed(feed_text)
-
-
-def normalize_amfi_date(raw_value: str) -> str | None:
-    value = normalize_text(raw_value)
-    if not value:
-        return None
-    for fmt in ("%d-%b-%Y", "%d-%m-%Y", "%d/%m/%Y", "%Y-%m-%d"):
-        try:
-            return datetime.strptime(value, fmt).strftime("%Y-%m-%d")
-        except ValueError:
-            continue
-    return None
-
-
-def sync_amfi_mutual_funds() -> dict[str, Any]:
-    nav_map = fetch_amfi_nav_data()
-    rows = fetch_all("SELECT id, fund_name, scheme_code, units, invested FROM mutual_funds ORDER BY id DESC")
-    synced = 0
-    missing_codes: list[str] = []
-    missing_nav: list[str] = []
-
-    for row in rows:
-        scheme_code = normalize_text(row.get("scheme_code"))
-        if not scheme_code:
-            missing_codes.append(row["fund_name"])
-            continue
-        nav_entry = nav_map.get(scheme_code)
-        if nav_entry is None:
-            missing_nav.append(f"{row['fund_name']} ({scheme_code})")
-            continue
-
-        units = as_float(row.get("units"))
-        latest_nav = as_float(nav_entry["nav"])
-        current_value = latest_nav * units if units else as_float(row.get("current_value"))
-        invested = as_float(row.get("invested"))
-        returns_pct = (((current_value - invested) / invested) * 100) if invested else 0.0
-        nav_date = normalize_amfi_date(nav_entry["nav_date"])
-
-        execute(
-            """
-            UPDATE mutual_funds
-            SET latest_nav = ?, nav_date = ?, current_value = ?, returns_pct = ?
-            WHERE id = ?
-            """,
-            (latest_nav, nav_date, current_value, returns_pct, row["id"]),
-        )
-        synced += 1
-
-    return {"synced": synced, "missing_codes": missing_codes, "missing_nav": missing_nav}
 
 
 TEMPLATE_SHEETS: list[tuple[str, list[str]]] = [
-    ("Bank", ["S.No", "Account Holder", "Bank Name", "Balance", "Purpose"]),
+    (
+        "Users",
+        [
+            "id",
+            "full_name",
+            "username",
+            "email",
+            "password_hash",
+            "zerodha_api_key",
+            "zerodha_api_secret",
+            "zerodha_access_token",
+            "zerodha_public_token",
+            "zerodha_user_id",
+            "zerodha_user_name",
+            "zerodha_token_expires_at",
+            "zerodha_connected_at",
+            "zerodha_last_sync_at",
+            "created_at",
+        ],
+    ),
+    ("Banks", ["id", "name"]),
+    ("bank_accounts", ["id", "user_id", "bank_id", "balance", "purpose"]),
     (
         "Fixed Deposit",
-        ["S.No", "Bank", "Invested", "Interest Rate", "Maturity Date", "Created Date", "Notes", "Current Amount", "Days To Mature"],
+        ["S.No", "account_id", "Invested", "Interest Rate", "Maturity Date", "Created Date", "TODAY", "Current Amount", "Days To Mature"],
     ),
-    ("Stocks", ["S.No", "Symbol", "Average Price", "Current Price", "Quantity"]),
+    ("Stocks", ["S.No", "Symbol", "Exchange", "ISIN", "Average Price", "Current Price", "Quantity", "Source"]),
     ("Mutal Funds", ["S.No", "Fund Name", "Invested", "Returns %", "Monthly SIP", "Current Value"]),
     ("Utility Bills", ["S.No", "Bill Type", "Amount"]),
     ("Loans", ["S.No", "Borrower", "Amount", "Interest Rate"]),
@@ -956,12 +965,30 @@ def build_dashboard_metrics() -> dict[str, Any]:
     )["total"]
 
     upcoming_fds = fetch_all(
-        "SELECT bank, maturity_date, current_amount, days_to_mature "
-        "FROM fixed_deposits WHERE days_to_mature BETWEEN 0 AND 120 "
-        "ORDER BY days_to_mature ASC LIMIT 5"
+        """
+        SELECT
+            CONCAT(COALESCE(u.full_name, 'Unknown'), ' / ', COALESCE(b.name, 'Unknown')) AS bank,
+            fd.maturity_date,
+            fd.current_amount,
+            fd.days_to_mature
+        FROM fixed_deposits fd
+        LEFT JOIN bank_accounts ba ON ba.id = fd.account_id
+        LEFT JOIN users u ON u.id = ba.user_id
+        LEFT JOIN banks b ON b.id = ba.bank_id
+        WHERE fd.days_to_mature BETWEEN 0 AND 120
+        ORDER BY fd.days_to_mature ASC
+        LIMIT 5
+        """
     )
     highest_balances = fetch_all(
-        "SELECT account_holder, bank_name, balance FROM bank_accounts ORDER BY balance DESC LIMIT 5"
+        """
+        SELECT u.full_name AS account_holder, b.name AS bank_name, ba.balance
+        FROM bank_accounts ba
+        LEFT JOIN users u ON u.id = ba.user_id
+        LEFT JOIN banks b ON b.id = ba.bank_id
+        ORDER BY ba.balance DESC
+        LIMIT 5
+        """
     )
     biggest_expenses = fetch_all(
         "SELECT spending_type, person, recipient, amount FROM spending ORDER BY amount DESC LIMIT 5"
@@ -1010,6 +1037,13 @@ def build_dashboard_metrics() -> dict[str, Any]:
 
 
 def serialize_form(entity_key: str, form_data: Any) -> dict[str, Any]:
+    if entity_key == "bank_accounts":
+        return {
+            "account_holder": normalize_text(form_data.get("account_holder")),
+            "bank_name": normalize_text(form_data.get("bank_name")),
+            "balance": as_float(form_data.get("balance")),
+            "purpose": normalize_text(form_data.get("purpose")),
+        }
     entity = ENTITY_CONFIG[entity_key]
     values: dict[str, Any] = {}
     for column in entity["columns"]:
@@ -1062,9 +1096,10 @@ register_bank_account_routes(
     app=app,
     entity_config=ENTITY_CONFIG,
     fetch_all=fetch_all,
+    fetch_one=fetch_one,
     execute=execute,
     as_float=as_float,
-    sync_bank_account_reference_data=sync_bank_account_reference_data,
+    ensure_bank_account_entities=ensure_bank_account_entities,
 )
 register_fixed_deposit_routes(
     app=app,
@@ -1355,32 +1390,6 @@ def clear_manual_stock_holdings():
     return redirect(url_for("stocks_page"))
 
 
-@app.post("/mutual-funds/amfi/sync")
-def amfi_sync_mutual_funds():
-    user = get_current_user()
-    if user is None:
-        flash("Please log in before syncing mutual funds.", "error")
-        return redirect(url_for("login"))
-
-    try:
-        result = sync_amfi_mutual_funds()
-    except Exception as exc:
-        flash(f"AMFI sync failed: {exc}", "error")
-        return redirect(url_for("mutual_funds_page"))
-
-    message = f"Updated {result['synced']} mutual fund row(s) from AMFI NAV."
-    if result["missing_codes"]:
-        preview = ", ".join(result["missing_codes"][:3])
-        message += f" Missing AMFI scheme code for: {preview}"
-        if len(result["missing_codes"]) > 3:
-            message += "..."
-    if result["missing_nav"]:
-        preview = ", ".join(result["missing_nav"][:3])
-        message += f" No NAV found for: {preview}"
-        if len(result["missing_nav"]) > 3:
-            message += "..."
-    flash(message, "success")
-    return redirect(url_for("mutual_funds_page"))
 
 
 @app.get("/")
@@ -1405,18 +1414,39 @@ def entity_list(entity_key: str) -> str:
         abort(404)
     search = request.args.get("q", "").strip()
     columns = entity["columns"]
-    query = f"SELECT * FROM {entity['table']}"
-    params: tuple[Any, ...] = ()
-    if search:
-        filters = []
-        for column in columns:
-            if column["type"] == "text":
-                filters.append(f"{column['name']} LIKE ?")
-                params += (f"%{search}%",)
-        if filters:
-            query += " WHERE " + " OR ".join(filters)
-    query += " ORDER BY id DESC"
-    rows = fetch_all(query, params)
+    if entity_key == "bank_accounts":
+        query = """
+            SELECT
+                ba.id,
+                ba.user_id,
+                ba.bank_id,
+                u.full_name AS account_holder,
+                b.name AS bank_name,
+                ba.balance,
+                ba.purpose
+            FROM bank_accounts ba
+            LEFT JOIN users u ON u.id = ba.user_id
+            LEFT JOIN banks b ON b.id = ba.bank_id
+        """
+        params: tuple[Any, ...] = ()
+        if search:
+            query += " WHERE u.full_name LIKE ? OR b.name LIKE ? OR ba.purpose LIKE ?"
+            params = (f"%{search}%", f"%{search}%", f"%{search}%")
+        query += " ORDER BY ba.id DESC"
+        rows = fetch_all(query, params)
+    else:
+        query = f"SELECT * FROM {entity['table']}"
+        params = ()
+        if search:
+            filters = []
+            for column in columns:
+                if column["type"] == "text":
+                    filters.append(f"{column['name']} LIKE ?")
+                    params += (f"%{search}%",)
+            if filters:
+                query += " WHERE " + " OR ".join(filters)
+        query += " ORDER BY id DESC"
+        rows = fetch_all(query, params)
     context = build_generic_entity_context(entity_key, rows)
     return render_template(
         "entity_list.html",
@@ -1434,11 +1464,18 @@ def entity_inline_update(entity_key: str, row_id: int):
         abort(404)
 
     values = serialize_form(entity_key, request.form)
-    assignments = ", ".join(f"{name} = ?" for name in values)
-    execute(
-        f"UPDATE {entity['table']} SET {assignments} WHERE id = ?",
-        tuple(values.values()) + (row_id,),
-    )
+    if entity_key == "bank_accounts":
+        user_id, bank_id = ensure_bank_account_entities(values["account_holder"], values["bank_name"])
+        execute(
+            "UPDATE bank_accounts SET user_id = ?, bank_id = ?, balance = ?, purpose = ? WHERE id = ?",
+            (user_id, bank_id, values["balance"], values["purpose"], row_id),
+        )
+    else:
+        assignments = ", ".join(f"{name} = ?" for name in values)
+        execute(
+            f"UPDATE {entity['table']} SET {assignments} WHERE id = ?",
+            tuple(values.values()) + (row_id,),
+        )
     if entity_key == "bank_accounts":
         sync_bank_account_reference_data()
     flash(f"{record_label(entity_key)} row updated.", "success")
@@ -1452,11 +1489,18 @@ def entity_create(entity_key: str) -> str:
         abort(404)
     if request.method == "POST":
         values = serialize_form(entity_key, request.form)
-        columns = list(values.keys())
-        execute(
-            f"INSERT INTO {entity['table']} ({', '.join(columns)}) VALUES ({', '.join('?' for _ in columns)})",
-            tuple(values[column] for column in columns),
-        )
+        if entity_key == "bank_accounts":
+            user_id, bank_id = ensure_bank_account_entities(values["account_holder"], values["bank_name"])
+            execute(
+                "INSERT INTO bank_accounts (user_id, bank_id, balance, purpose) VALUES (?, ?, ?, ?)",
+                (user_id, bank_id, values["balance"], values["purpose"]),
+            )
+        else:
+            columns = list(values.keys())
+            execute(
+                f"INSERT INTO {entity['table']} ({', '.join(columns)}) VALUES ({', '.join('?' for _ in columns)})",
+                tuple(values[column] for column in columns),
+            )
         if entity_key == "bank_accounts":
             sync_bank_account_reference_data()
         flash(f"{record_label(entity_key)} record added successfully.", "success")
@@ -1469,16 +1513,42 @@ def entity_edit(entity_key: str, row_id: int) -> str:
     entity = ENTITY_CONFIG.get(entity_key)
     if entity is None:
         abort(404)
-    row = fetch_one(f"SELECT * FROM {entity['table']} WHERE id = ?", (row_id,))
+    if entity_key == "bank_accounts":
+        row = fetch_one(
+            """
+            SELECT
+                ba.id,
+                ba.user_id,
+                ba.bank_id,
+                u.full_name AS account_holder,
+                b.name AS bank_name,
+                ba.balance,
+                ba.purpose
+            FROM bank_accounts ba
+            LEFT JOIN users u ON u.id = ba.user_id
+            LEFT JOIN banks b ON b.id = ba.bank_id
+            WHERE ba.id = ?
+            """,
+            (row_id,),
+        )
+    else:
+        row = fetch_one(f"SELECT * FROM {entity['table']} WHERE id = ?", (row_id,))
     if row is None:
         abort(404)
     if request.method == "POST":
         values = serialize_form(entity_key, request.form)
-        assignments = ", ".join(f"{name} = ?" for name in values)
-        execute(
-            f"UPDATE {entity['table']} SET {assignments} WHERE id = ?",
-            tuple(values.values()) + (row_id,),
-        )
+        if entity_key == "bank_accounts":
+            user_id, bank_id = ensure_bank_account_entities(values["account_holder"], values["bank_name"])
+            execute(
+                "UPDATE bank_accounts SET user_id = ?, bank_id = ?, balance = ?, purpose = ? WHERE id = ?",
+                (user_id, bank_id, values["balance"], values["purpose"], row_id),
+            )
+        else:
+            assignments = ", ".join(f"{name} = ?" for name in values)
+            execute(
+                f"UPDATE {entity['table']} SET {assignments} WHERE id = ?",
+                tuple(values.values()) + (row_id,),
+            )
         if entity_key == "bank_accounts":
             sync_bank_account_reference_data()
         flash(f"{record_label(entity_key)} record updated successfully.", "success")
