@@ -37,6 +37,8 @@
     .brand { margin-bottom: 24px; padding-bottom: 20px; border-bottom: 1px solid var(--line); }
     .brand h1 { font-size: 2rem; line-height: 1; margin: 0 0 8px; }
     .brand p, .muted { color: var(--muted); }
+    .account-box { margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--line); display: grid; gap: 10px; }
+    .account-box form { margin: 0; }
     .nav-section { margin-bottom: 18px; }
     .nav-section h2 { margin: 0 0 10px; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.14em; color: var(--muted); }
     .nav-link { display: block; padding: 12px 14px; margin-bottom: 8px; border-radius: 16px; transition: transform 160ms ease, background 160ms ease; }
@@ -123,6 +125,19 @@
           {% endif %}
         {% endfor %}
       </div>
+      {% if is_authenticated %}
+        <div class="account-box">
+          <div>
+            <div class="eyebrow">Access</div>
+            <strong>{{ current_full_name or current_username }}</strong>
+            <div class="muted">@{{ current_username }}</div>
+            <div class="muted">Authenticated session active</div>
+          </div>
+          <form method="post" action="{{ url_for('logout') }}">
+            <button type="submit" class="btn secondary">Log Out</button>
+          </form>
+        </div>
+      {% endif %}
     </aside>
     <main class="content">
       {% with messages = get_flashed_messages(with_categories=true) %}

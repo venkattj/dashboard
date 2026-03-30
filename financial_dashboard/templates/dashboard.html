@@ -6,12 +6,15 @@
   <section class="hero">
     <div class="eyebrow">Financial cockpit</div>
     <h2>See where the money sits, where it moves, and what matures next.</h2>
-    <p>This dashboard is seeded from your Excel workbook into an in-memory SQLite database, so we can reload from source any time while still supporting fast CRUD workflows in the app.</p>
+    <p>This dashboard is seeded from your Excel workbook into MySQL, so we can reload from source any time while still supporting fast CRUD workflows in the app.</p>
     <div class="topbar">
       <div class="muted">Last generated on {{ metrics.generated_on }}</div>
-      <form method="post" action="{{ url_for('reload_data') }}">
-        <button type="submit">Reload From Workbook</button>
-      </form>
+      <div class="actions">
+        <a class="btn secondary" href="{{ url_for('download_template') }}">Download Excel Template</a>
+        <form method="post" action="{{ url_for('reload_data') }}">
+          <button type="submit">Reload From Workbook</button>
+        </form>
+      </div>
     </div>
   </section>
 

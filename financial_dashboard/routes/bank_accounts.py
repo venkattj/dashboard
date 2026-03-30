@@ -13,6 +13,7 @@ def register_bank_account_routes(
     fetch_all: Callable[..., list],
     execute: Callable[..., None],
     as_float: Callable[[Any], float],
+    sync_bank_account_reference_data: Callable[[], None],
 ) -> None:
     @app.get("/entity/bank_accounts", endpoint="bank_accounts_page")
     def bank_accounts_page() -> str:
@@ -33,6 +34,7 @@ def register_bank_account_routes(
             "UPDATE bank_accounts SET account_holder = ?, bank_name = ?, balance = ?, purpose = ? WHERE id = ?",
             (values["account_holder"], values["bank_name"], values["balance"], values["purpose"], row_id),
         )
+        sync_bank_account_reference_data()
         flash("Bank account row updated.", "success")
 
         query_args = {

@@ -28,6 +28,8 @@ NS = {
 }
 EXCEL_BASE_DATE = datetime(1899, 12, 30)
 ENTITY_ORDER = [
+    "users",
+    "banks",
     "bank_accounts",
     "fixed_deposits",
     "stocks",
@@ -45,8 +47,32 @@ ENTITY_ORDER = [
 
 
 TABLE_DEFINITIONS = {
+    "users": [
+        "`id` INT PRIMARY KEY AUTO_INCREMENT",
+        "`full_name` VARCHAR(255) NOT NULL UNIQUE",
+        "`username` VARCHAR(255) NULL UNIQUE",
+        "`email` VARCHAR(255) NULL UNIQUE",
+        "`password_hash` VARCHAR(255) NULL",
+        "`zerodha_api_key` VARCHAR(255) NULL",
+        "`zerodha_api_secret` VARCHAR(255) NULL",
+        "`zerodha_access_token` VARCHAR(255) NULL",
+        "`zerodha_public_token` VARCHAR(255) NULL",
+        "`zerodha_user_id` VARCHAR(255) NULL",
+        "`zerodha_user_name` VARCHAR(255) NULL",
+        "`zerodha_token_expires_at` DATETIME NULL",
+        "`zerodha_connected_at` DATETIME NULL",
+        "`zerodha_last_sync_at` DATETIME NULL",
+        "`created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP",
+    ],
+    "banks": [
+        "`id` INT PRIMARY KEY AUTO_INCREMENT",
+        "`name` VARCHAR(255) NOT NULL UNIQUE",
+        "`created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP",
+    ],
     "bank_accounts": [
         "`id` INT PRIMARY KEY AUTO_INCREMENT",
+        "`user_id` INT NULL",
+        "`bank_id` INT NULL",
         "`account_holder` VARCHAR(255) NOT NULL",
         "`bank_name` VARCHAR(255) NOT NULL",
         "`balance` DOUBLE NOT NULL DEFAULT 0",
@@ -65,13 +91,21 @@ TABLE_DEFINITIONS = {
     "stocks": [
         "`id` INT PRIMARY KEY AUTO_INCREMENT",
         "`symbol` VARCHAR(255) NOT NULL",
+        "`exchange` VARCHAR(32) NULL",
+        "`isin` VARCHAR(32) NULL",
         "`average_price` DOUBLE NOT NULL DEFAULT 0",
         "`current_price` DOUBLE NOT NULL DEFAULT 0",
         "`quantity` DOUBLE NOT NULL DEFAULT 0",
+        "`source` VARCHAR(32) NOT NULL DEFAULT 'manual'",
+        "`last_synced_price_at` DATETIME NULL",
     ],
     "mutual_funds": [
         "`id` INT PRIMARY KEY AUTO_INCREMENT",
         "`fund_name` VARCHAR(255) NOT NULL",
+        "`scheme_code` VARCHAR(32) NULL",
+        "`units` DOUBLE NULL",
+        "`latest_nav` DOUBLE NULL",
+        "`nav_date` DATE NULL",
         "`invested` DOUBLE NOT NULL DEFAULT 0",
         "`returns_pct` DOUBLE NOT NULL DEFAULT 0",
         "`sip` DOUBLE NOT NULL DEFAULT 0",
@@ -412,6 +446,163 @@ def create_tables() -> None:
             for table_name, columns in TABLE_DEFINITIONS.items():
                 ddl = f"CREATE TABLE IF NOT EXISTS `{table_name}` ({', '.join(columns)}) ENGINE=InnoDB"
                 cur.execute(ddl)
+            ensure_user_auth_columns(cur)
+            ensure_bank_account_reference_columns(cur)
+            ensure_stock_sync_columns(cur)
+            ensure_mutual_fund_sync_columns(cur)
+            sync_bank_account_reference_data(cur)
+
+
+def _column_exists(cur, table_name: str, column_name: str) -> bool:
+    cur.execute(
+        """
+        SELECT 1
+        FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = %s AND TABLE_NAME = %s AND COLUMN_NAME = %s
+        """,
+        (Config.MYSQL_DB, table_name, column_name),
+    )
+    return cur.fetchone() is not None
+
+
+def _constraint_exists(cur, table_name: str, constraint_name: str) -> bool:
+    cur.execute(
+        """
+        SELECT 1
+        FROM information_schema.TABLE_CONSTRAINTS
+        WHERE TABLE_SCHEMA = %s AND TABLE_NAME = %s AND CONSTRAINT_NAME = %s
+        """,
+        (Config.MYSQL_DB, table_name, constraint_name),
+    )
+    return cur.fetchone() is not None
+
+
+def _index_exists(cur, table_name: str, index_name: str) -> bool:
+    cur.execute(
+        """
+        SELECT 1
+        FROM information_schema.STATISTICS
+        WHERE TABLE_SCHEMA = %s AND TABLE_NAME = %s AND INDEX_NAME = %s
+        """,
+        (Config.MYSQL_DB, table_name, index_name),
+    )
+    return cur.fetchone() is not None
+
+
+def ensure_user_auth_columns(cur) -> None:
+    if not _column_exists(cur, "users", "username"):
+        cur.execute("ALTER TABLE `users` ADD COLUMN `username` VARCHAR(255) NULL AFTER `full_name`")
+    if not _column_exists(cur, "users", "email"):
+        cur.execute("ALTER TABLE `users` ADD COLUMN `email` VARCHAR(255) NULL AFTER `username`")
+    if not _column_exists(cur, "users", "password_hash"):
+        cur.execute("ALTER TABLE `users` ADD COLUMN `password_hash` VARCHAR(255) NULL AFTER `email`")
+    if not _column_exists(cur, "users", "zerodha_api_key"):
+        cur.execute("ALTER TABLE `users` ADD COLUMN `zerodha_api_key` VARCHAR(255) NULL AFTER `password_hash`")
+    if not _column_exists(cur, "users", "zerodha_api_secret"):
+        cur.execute("ALTER TABLE `users` ADD COLUMN `zerodha_api_secret` VARCHAR(255) NULL AFTER `zerodha_api_key`")
+    if not _column_exists(cur, "users", "zerodha_access_token"):
+        cur.execute("ALTER TABLE `users` ADD COLUMN `zerodha_access_token` VARCHAR(255) NULL AFTER `zerodha_api_secret`")
+    if not _column_exists(cur, "users", "zerodha_public_token"):
+        cur.execute("ALTER TABLE `users` ADD COLUMN `zerodha_public_token` VARCHAR(255) NULL AFTER `zerodha_access_token`")
+    if not _column_exists(cur, "users", "zerodha_user_id"):
+        cur.execute("ALTER TABLE `users` ADD COLUMN `zerodha_user_id` VARCHAR(255) NULL AFTER `zerodha_public_token`")
+    if not _column_exists(cur, "users", "zerodha_user_name"):
+        cur.execute("ALTER TABLE `users` ADD COLUMN `zerodha_user_name` VARCHAR(255) NULL AFTER `zerodha_user_id`")
+    if not _column_exists(cur, "users", "zerodha_token_expires_at"):
+        cur.execute("ALTER TABLE `users` ADD COLUMN `zerodha_token_expires_at` DATETIME NULL AFTER `zerodha_user_name`")
+    if not _column_exists(cur, "users", "zerodha_connected_at"):
+        cur.execute("ALTER TABLE `users` ADD COLUMN `zerodha_connected_at` DATETIME NULL AFTER `zerodha_token_expires_at`")
+    if not _column_exists(cur, "users", "zerodha_last_sync_at"):
+        cur.execute("ALTER TABLE `users` ADD COLUMN `zerodha_last_sync_at` DATETIME NULL AFTER `zerodha_connected_at`")
+
+    if not _index_exists(cur, "users", "username"):
+        cur.execute("ALTER TABLE `users` ADD UNIQUE INDEX `username` (`username`)")
+    if not _index_exists(cur, "users", "email"):
+        cur.execute("ALTER TABLE `users` ADD UNIQUE INDEX `email` (`email`)")
+
+
+def ensure_bank_account_reference_columns(cur) -> None:
+    if not _column_exists(cur, "bank_accounts", "user_id"):
+        cur.execute("ALTER TABLE `bank_accounts` ADD COLUMN `user_id` INT NULL AFTER `id`")
+    if not _column_exists(cur, "bank_accounts", "bank_id"):
+        cur.execute("ALTER TABLE `bank_accounts` ADD COLUMN `bank_id` INT NULL AFTER `user_id`")
+
+    if not _index_exists(cur, "bank_accounts", "idx_bank_accounts_user_id"):
+        cur.execute("ALTER TABLE `bank_accounts` ADD INDEX `idx_bank_accounts_user_id` (`user_id`)")
+    if not _index_exists(cur, "bank_accounts", "idx_bank_accounts_bank_id"):
+        cur.execute("ALTER TABLE `bank_accounts` ADD INDEX `idx_bank_accounts_bank_id` (`bank_id`)")
+
+    if not _constraint_exists(cur, "bank_accounts", "fk_bank_accounts_user"):
+        cur.execute(
+            """
+            ALTER TABLE `bank_accounts`
+            ADD CONSTRAINT `fk_bank_accounts_user`
+            FOREIGN KEY (`user_id`) REFERENCES `users`(`id`)
+            ON UPDATE CASCADE ON DELETE SET NULL
+            """
+        )
+    if not _constraint_exists(cur, "bank_accounts", "fk_bank_accounts_bank"):
+        cur.execute(
+            """
+            ALTER TABLE `bank_accounts`
+            ADD CONSTRAINT `fk_bank_accounts_bank`
+            FOREIGN KEY (`bank_id`) REFERENCES `banks`(`id`)
+            ON UPDATE CASCADE ON DELETE SET NULL
+            """
+        )
+
+
+def ensure_stock_sync_columns(cur) -> None:
+    if not _column_exists(cur, "stocks", "exchange"):
+        cur.execute("ALTER TABLE `stocks` ADD COLUMN `exchange` VARCHAR(32) NULL AFTER `symbol`")
+    if not _column_exists(cur, "stocks", "isin"):
+        cur.execute("ALTER TABLE `stocks` ADD COLUMN `isin` VARCHAR(32) NULL AFTER `exchange`")
+    if not _column_exists(cur, "stocks", "source"):
+        cur.execute("ALTER TABLE `stocks` ADD COLUMN `source` VARCHAR(32) NOT NULL DEFAULT 'manual' AFTER `quantity`")
+    if not _column_exists(cur, "stocks", "last_synced_price_at"):
+        cur.execute("ALTER TABLE `stocks` ADD COLUMN `last_synced_price_at` DATETIME NULL AFTER `source`")
+
+
+def ensure_mutual_fund_sync_columns(cur) -> None:
+    if not _column_exists(cur, "mutual_funds", "scheme_code"):
+        cur.execute("ALTER TABLE `mutual_funds` ADD COLUMN `scheme_code` VARCHAR(32) NULL AFTER `fund_name`")
+    if not _column_exists(cur, "mutual_funds", "units"):
+        cur.execute("ALTER TABLE `mutual_funds` ADD COLUMN `units` DOUBLE NULL AFTER `scheme_code`")
+    if not _column_exists(cur, "mutual_funds", "latest_nav"):
+        cur.execute("ALTER TABLE `mutual_funds` ADD COLUMN `latest_nav` DOUBLE NULL AFTER `units`")
+    if not _column_exists(cur, "mutual_funds", "nav_date"):
+        cur.execute("ALTER TABLE `mutual_funds` ADD COLUMN `nav_date` DATE NULL AFTER `latest_nav`")
+
+
+def sync_bank_account_reference_data(cur) -> None:
+    cur.execute(
+        """
+        INSERT INTO `users` (`full_name`)
+        SELECT DISTINCT TRIM(`account_holder`)
+        FROM `bank_accounts`
+        WHERE TRIM(COALESCE(`account_holder`, '')) <> ''
+        ON DUPLICATE KEY UPDATE `full_name` = VALUES(`full_name`)
+        """
+    )
+    cur.execute(
+        """
+        INSERT INTO `banks` (`name`)
+        SELECT DISTINCT TRIM(`bank_name`)
+        FROM `bank_accounts`
+        WHERE TRIM(COALESCE(`bank_name`, '')) <> ''
+        ON DUPLICATE KEY UPDATE `name` = VALUES(`name`)
+        """
+    )
+    cur.execute(
+        """
+        UPDATE `bank_accounts` ba
+        LEFT JOIN `users` u ON u.`full_name` = TRIM(ba.`account_holder`)
+        LEFT JOIN `banks` b ON b.`name` = TRIM(ba.`bank_name`)
+        SET
+            ba.`user_id` = u.`id`,
+            ba.`bank_id` = b.`id`
+        """
+    )
 
 
 def truncate_tables() -> None:
@@ -445,6 +636,7 @@ def seed_tables(workbook_path: Path) -> dict[str, int]:
                 ]
                 cur.executemany(sql, payload)
                 inserted_counts[table_name] = len(payload)
+            sync_bank_account_reference_data(cur)
 
     return inserted_counts
 
