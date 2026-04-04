@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Render Flask Sample</title>
+    <style>
+      body {
+        margin: 0;
+        font-family: "Segoe UI", system-ui, sans-serif;
+        background: #0b1a2d;
+        color: #f8fafc;
+      }
+      main {
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 32px;
+        padding: 48px 24px;
+      }
+      .card {
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(248, 250, 252, 0.2);
+        border-radius: 18px;
+        padding: 24px;
+        width: min(520px, 100%);
+        box-shadow: 0 10px 30px rgba(2, 6, 23, 0.45);
+      }
+      button {
+        border: none;
+        border-radius: 12px;
+        padding: 12px 18px;
+        cursor: pointer;
+        font-weight: 600;
+        background: linear-gradient(135deg, #38bdf8, #6366f1);
+        color: white;
+        margin-top: 8px;
+      }
+      .stat-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 8px;
+      }
+      .stats-grid {
+        display: grid;
+        gap: 12px;
+        margin-top: 16px;
+      }
+      .region-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 8px;
+        margin-top: 12px;
+      }
+      .region-pill {
+        background: rgba(255, 255, 255, 0.07);
+        border-radius: 999px;
+        padding: 6px 12px;
+        font-size: 0.9rem;
+        text-align: center;
+      }
+      footer {
+        font-size: 0.85rem;
+        color: rgba(248, 250, 252, 0.65);
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="card">
+        <h1 style="margin: 0 0 16px">Render Flask Sample</h1>
+        <p id="quote-text">Loading inspirational quote…</p>
+        <p id="quote-author" style="margin: 0 0 4px; color: #a5b4fc"></p>
+        <small id="quote-time" style="color: #94a3b8"></small>
+        <button id="refresh-quote">New Inspiration</button>
+      </div>
+      <div class="card">
+        <div class="stat-row">
+          <h2 style="margin: 0">Live stats</h2>
+          <button id="refresh-stats">Refresh</button>
+        </div>
+        <div class="stats-grid">
+          <div class="stat-row">
+            <span>Active users</span>
+            <strong id="active-users">–</strong>
+          </div>
+          <div class="stat-row">
+            <span>Conversion rate</span>
+            <strong id="conversion-rate">–</strong>
+          </div>
+          <div class="stat-row">
+            <span>Last updated</span>
+            <strong id="stats-timestamp">–</strong>
+          </div>
+        </div>
+        <div class="region-grid" id="region-grid"></div>
+      </div>
+      <footer>Rendered on {{ now }}</footer>
+    </main>
+    <script>
+      const quoteText = document.getElementById("quote-text");
+      const quoteAuthor = document.getElementById("quote-author");
+      const quoteTime = document.getElementById("quote-time");
+      const refreshQuote = document.getElementById("refresh-quote");
+      const activeUsers = document.getElementById("active-users");
+      const conversionRate = document.getElementById("conversion-rate");
+      const statsTimestamp = document.getElementById("stats-timestamp");
+      const refreshStats = document.getElementById("refresh-stats");
+      const regionGrid = document.getElementById("region-grid");
+
+      async function loadQuote() {
+        quoteText.textContent = "Loading…";
+        try {
+          const response = await fetch("/api/quote");
+          const data = await response.json();
+          quoteText.textContent = data.quote;
+          quoteAuthor.textContent = data.author;
+          quoteTime.textContent = new Date(data.timestamp).toLocaleTimeString();
+        } catch (error) {
+          quoteText.textContent = "Unable to load quote.";
+        }
+      }
+
+      async function loadStats() {
+        activeUsers.textContent = "Loading…";
+        conversionRate.textContent = "Loading…";
+        statsTimestamp.textContent = "Loading…";
+        regionGrid.innerHTML = "";
+        try {
+          const response = await fetch("/api/stats");
+          const data = await response.json();
+          activeUsers.textContent = data.active_users;
+          conversionRate.textContent = `${(data.conversion_rate * 100).toFixed(1)}%`;
+          statsTimestamp.textContent = new Date(data.timestamp).toLocaleTimeString();
+          Object.entries(data.region_breakdown).forEach(([region, value]) => {
+            const pill = document.createElement("div");
+            pill.className = "region-pill";
+            pill.textContent = `${region}: ${value}`;
+            regionGrid.appendChild(pill);
+          });
+        } catch (error) {
+          activeUsers.textContent = "—";
+          conversionRate.textContent = "—";
+          statsTimestamp.textContent = "—";
+        }
+      }
+
+      refreshQuote.addEventListener("click", loadQuote);
+      refreshStats.addEventListener("click", loadStats);
+      loadQuote();
+      loadStats();
+    </script>
+  </body>
+</html>
