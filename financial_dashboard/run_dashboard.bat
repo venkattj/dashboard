@@ -12,7 +12,7 @@ if not exist "%PYTHON%" (
   exit /b 1
 )
 
-%PYTHON% -c "import flask, pymysql, requests" >nul 2>&1
+%PYTHON% -c "import flask, pymysql, requests, yfinance" >nul 2>&1
 if errorlevel 1 (
   echo Installing missing dependencies from requirements.txt...
   %PYTHON% -m pip install -r requirements.txt

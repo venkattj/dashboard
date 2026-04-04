@@ -448,6 +448,66 @@ def current_timestamp_string() -> str:
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 
+_JPM_PRICE_CACHE: dict[str, Any] = {
+    "price": None,
+    "rate": None,
+    "expires_at": datetime.min,
+}
+
+
+def _fetch_jpm_inr_price() -> tuple[float, float] | None:
+    cache = _JPM_PRICE_CACHE
+    now = datetime.now()
+    expires_at = cache["expires_at"]
+    if expires_at and expires_at > now and cache["price"] is not None and cache["rate"] is not None:
+        return cache["price"], cache["rate"]
+    try:
+        import yfinance as yf
+    except ImportError:
+        return None
+
+    price_inr = None
+    usd_inr_rate = None
+    for attempt in range(3):
+        try:
+            ticker = yf.Ticker("JPM")
+            history = ticker.history(period="1d")
+            if history.empty:
+                raise ValueError("JPM history empty")
+            close_usd = history["Close"].iloc[-1]
+            fx_ticker = yf.Ticker("INR=X")
+            fx_history = fx_ticker.history(period="1d")
+            if fx_history.empty:
+                raise ValueError("USDINR history empty")
+            usd_inr_rate = fx_history["Close"].iloc[-1]
+            price_inr = close_usd * usd_inr_rate
+            break
+        except Exception:
+            if attempt < 2:
+                continue
+            return None
+
+    cache["price"] = price_inr
+    cache["rate"] = usd_inr_rate
+    cache["expires_at"] = now + timedelta(minutes=15)
+    return price_inr, usd_inr_rate
+
+
+def _update_jpm_stock(price_inr: float, usd_inr_rate: float) -> int:
+    rows = fetch_all("SELECT id, average_price FROM stocks WHERE UPPER(symbol) = 'JPM'")
+    if not rows:
+        return 0
+    timestamp = current_timestamp_string()
+    updated = 0
+    for row in rows:
+        execute(
+            "UPDATE stocks SET current_price = ?, last_synced_price_at = ? WHERE id = ?",
+            (price_inr, timestamp, row["id"]),
+        )
+        updated += 1
+    return updated
+
+
 def zerodha_state_serializer() -> URLSafeSerializer:
     return URLSafeSerializer(app.secret_key, salt="zerodha-connect")
 
@@ -1593,6 +1653,27 @@ def zerodha_sync():
         return redirect(url_for("stocks_page"))
 
     flash(f"Synced {synced_count} Zerodha stock holding(s) into the dashboard.", "success")
+    return redirect(url_for("stocks_page"))
+
+
+@app.post("/stocks/zerodha/sync-jpm")
+def zerodha_sync_jpm():
+    user = get_current_user()
+    if user is None:
+        flash("Please log in before syncing JPM.", "error")
+        return redirect(url_for("login"))
+
+    price_data = _fetch_jpm_inr_price()
+    if price_data is None:
+        flash("Could not fetch JPM INR pricing from Yahoo Finance. Try again later.", "error")
+        return redirect(url_for("stocks_page"))
+
+    price_inr, usd_inr_rate = price_data
+    updated_rows = _update_jpm_stock(price_inr, usd_inr_rate)
+    if updated_rows == 0:
+        flash("No JPM rows found in the dashboard to update.", "error")
+    else:
+        flash(f"Updated {updated_rows} JPM row(s) with the latest INR price.", "success")
     return redirect(url_for("stocks_page"))
 
 

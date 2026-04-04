@@ -79,6 +79,9 @@
               <form method="post" action="{{ url_for('zerodha_sync') }}" class="inline">
                 <button type="submit">Sync Holdings</button>
               </form>
+              <form method="post" action="{{ url_for('zerodha_sync_jpm') }}" class="inline">
+                <button type="submit" class="btn secondary">Sync JPM INR</button>
+              </form>
               {% if integration_panel.mutual_fund_sync_url %}
                 <form method="post" action="{{ integration_panel.mutual_fund_sync_url }}" class="inline">
                   <button type="submit" class="btn secondary">Sync Mutual Funds</button>
