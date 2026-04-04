@@ -85,7 +85,6 @@ TABLE_DEFINITIONS = {
         "`maturity_date` DATE NULL",
         "`created_date` DATE NULL",
         "`current_amount` DOUBLE NOT NULL DEFAULT 0",
-        "`days_to_mature` INT NULL",
     ],
     "stocks": [
         "`id` INT PRIMARY KEY AUTO_INCREMENT",
@@ -353,7 +352,6 @@ def parse_workbook_rows(path: Path) -> dict[str, list[dict[str, Any]]]:
                     "maturity_date": row[4],
                     "created_date": row[5],
                     "current_amount": as_float(row[7]),
-                    "days_to_mature": as_int(row[8]),
                 }
             )
 
@@ -720,6 +718,8 @@ def ensure_fixed_deposit_reference_columns(cur) -> None:
 
     if _column_exists(cur, "fixed_deposits", "bank"):
         cur.execute("ALTER TABLE `fixed_deposits` DROP COLUMN `bank`")
+    if _column_exists(cur, "fixed_deposits", "days_to_mature"):
+        cur.execute("ALTER TABLE `fixed_deposits` DROP COLUMN `days_to_mature`")
 
 
 def sync_bank_account_reference_data(cur) -> None:

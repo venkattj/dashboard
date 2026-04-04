@@ -13,10 +13,12 @@
     <form method="post">
       <div class="form-grid">
         {% for column in entity.columns %}
-          <label>
-            <span>{{ column.label }}</span>
-            <input type="{{ column.type }}" name="{{ column.name }}" step="{{ column.step or 'any' }}" value="{{ row[column.name] if row else '' }}" {% if column.type == 'text' %}maxlength="255"{% endif %} required>
-          </label>
+          {% if not column.get("read_only") %}
+            <label>
+              <span>{{ column.label }}</span>
+              <input type="{{ column.type }}" name="{{ column.name }}" step="{{ column.step or 'any' }}" value="{{ row[column.name] if row else '' }}" {% if column.type == 'text' %}maxlength="255"{% endif %} required>
+            </label>
+          {% endif %}
         {% endfor %}
       </div>
       <div class="topbar">

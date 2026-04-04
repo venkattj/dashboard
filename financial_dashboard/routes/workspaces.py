@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import date, datetime
 from typing import Any, Callable
 
 
@@ -32,6 +33,9 @@ def _stock_returns_pct(row: dict[str, Any], as_float: Callable[[Any], float]) ->
 
 
 def _mutual_fund_invested(row: dict[str, Any], as_float: Callable[[Any], float]) -> float:
+    invested_from_column = row.get("amount_invested")
+    if invested_from_column is not None:
+        return as_float(invested_from_column)
     return as_float(row.get("average_nav")) * as_float(row.get("units"))
 
 
@@ -41,10 +45,45 @@ def _mutual_fund_current_value(row: dict[str, Any], as_float: Callable[[Any], fl
 
 def _mutual_fund_returns_pct(row: dict[str, Any], as_float: Callable[[Any], float]) -> float:
     invested = _mutual_fund_invested(row, as_float)
-    current_value = as_float(row.get("current_value"))
+    current_value_source = row.get("current_value")
+    if current_value_source is not None:
+        current_value = as_float(current_value_source)
+    else:
+        current_value = _mutual_fund_current_value(row, as_float)
     if invested:
         return ((current_value - invested) / invested) * 100
     return 0.0
+
+
+def _normalize_date(value: Any) -> date | None:
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return None
+        for fmt in ("%Y-%m-%d", "%d-%m-%Y"):
+            try:
+                return datetime.strptime(text, fmt).date()
+            except ValueError:
+                continue
+        try:
+            return date.fromisoformat(text)
+        except ValueError:
+            return None
+    return None
+
+
+def compute_fixed_deposit_days_to_mature(row: dict[str, Any], today: date | None = None) -> int | None:
+    maturity_date = _normalize_date(row.get("maturity_date"))
+    if maturity_date is None:
+        return None
+    base = today or datetime.now().date()
+    return max((maturity_date - base).days, 0)
 
 
 def build_banking_workspace(
@@ -88,15 +127,24 @@ def build_banking_workspace(
     bank_total = sum(as_float(row["balance"]) for row in bank_rows)
     fd_total = sum(as_float(row["current_amount"]) for row in fd_rows)
     fd_invested = sum(as_float(row["invested"]) for row in fd_rows)
+    today = datetime.now().date()
+    for row in fd_rows:
+        row["days_to_mature"] = compute_fixed_deposit_days_to_mature(row, today)
     low_balance_count = sum(1 for row in bank_rows if as_float(row["balance"]) < 5000)
-    soon_maturing = sum(1 for row in fd_rows if 0 <= as_float(row["days_to_mature"]) <= 120)
-    maturing_30 = sum(1 for row in fd_rows if 0 <= as_float(row["days_to_mature"]) <= 30)
-    maturing_90 = sum(1 for row in fd_rows if 0 <= as_float(row["days_to_mature"]) <= 90)
+    soon_maturing = sum(
+        1 for row in fd_rows if row.get("days_to_mature") is not None and 0 <= row["days_to_mature"] <= 120
+    )
+    maturing_30 = sum(
+        1 for row in fd_rows if row.get("days_to_mature") is not None and 0 <= row["days_to_mature"] <= 30
+    )
+    maturing_90 = sum(
+        1 for row in fd_rows if row.get("days_to_mature") is not None and 0 <= row["days_to_mature"] <= 90
+    )
     top_account = max(bank_rows, key=lambda row: as_float(row["balance"]), default=None)
     top_fd = max(fd_rows, key=lambda row: as_float(row["current_amount"]), default=None)
     next_maturity = min(
-        (row for row in fd_rows if as_float(row["days_to_mature"]) >= 0),
-        key=lambda row: as_float(row["days_to_mature"]),
+        (row for row in fd_rows if row.get("days_to_mature") is not None),
+        key=lambda row: row["days_to_mature"],
         default=None,
     )
     average_fd_rate = (
@@ -169,7 +217,15 @@ def build_banking_workspace(
                 "current_amount",
                 [
                     {"label": "Top FD", "value": top_fd["account_label"] if top_fd else "No data", "note": f"Rs. {as_float(top_fd['current_amount']):,.2f}" if top_fd else "No FD records available."},
-                    {"label": "Next maturity", "value": next_maturity["account_label"] if next_maturity else "No data", "note": f"{int(as_float(next_maturity['days_to_mature']))} days left · matures on {next_maturity['maturity_date']}" if next_maturity else "No active FD maturities available."},
+                    {
+                        "label": "Next maturity",
+                        "value": next_maturity["account_label"] if next_maturity else "No data",
+                        "note": (
+                            f"{next_maturity['days_to_mature']} days left · matures on {next_maturity['maturity_date']}"
+                            if next_maturity and next_maturity.get("days_to_mature") is not None
+                            else "No active FD maturities available."
+                        ),
+                    },
                     {"label": "Average rate", "value": f"{average_fd_rate:,.2f}%", "note": f"Simple average across {len(fd_rows)} deposits."},
                     {"label": "Largest linked account", "value": top_fd_account_name, "note": f"Rs. {top_fd_account_total:,.2f} total FD value linked to this operating account."},
                 ],
@@ -192,8 +248,12 @@ def build_markets_workspace(
 
     enriched_mf_rows = []
     for row in mf_rows:
-        current_value = _mutual_fund_current_value(row, as_float)
-        returns_pct = _mutual_fund_returns_pct(row, as_float)
+        current_value_source = row.get("current_value")
+        if current_value_source is not None:
+            current_value = as_float(current_value_source)
+        else:
+            current_value = _mutual_fund_current_value(row, as_float)
+        returns_pct = _mutual_fund_returns_pct({**row, "current_value": current_value}, as_float)
         enriched_mf_rows.append({**row, "current_value": current_value, "returns_pct": returns_pct})
 
     enriched_stock_rows = []

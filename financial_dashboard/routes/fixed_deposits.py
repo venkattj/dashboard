@@ -31,10 +31,9 @@ def register_fixed_deposit_routes(
             "maturity_date": request.form.get("maturity_date", "").strip(),
             "created_date": request.form.get("created_date", "").strip(),
             "current_amount": as_float(request.form.get("current_amount", "0")),
-            "days_to_mature": as_int(request.form.get("days_to_mature", "0")),
         }
         execute(
-            "UPDATE fixed_deposits SET account_id = ?, invested = ?, interest_rate = ?, maturity_date = ?, created_date = ?, current_amount = ?, days_to_mature = ? WHERE id = ?",
+            "UPDATE fixed_deposits SET account_id = ?, invested = ?, interest_rate = ?, maturity_date = ?, created_date = ?, current_amount = ? WHERE id = ?",
             (
                 values["account_id"],
                 values["invested"],
@@ -42,7 +41,6 @@ def register_fixed_deposit_routes(
                 values["maturity_date"],
                 values["created_date"],
                 values["current_amount"],
-                values["days_to_mature"],
                 row_id,
             ),
         )

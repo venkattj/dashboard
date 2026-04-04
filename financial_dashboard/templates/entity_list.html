@@ -125,12 +125,14 @@
                       {{ row[column.name] or 'Unassigned' }}
                     {% endif %}
                   </span>
-                  <input class="table-input hidden" type="{{ 'number' if column.type == 'number' else ('date' if column.type == 'date' else 'text') }}"
-                    {% if column.type == 'number' %}step="{{ column.step or '0.01' }}"{% endif %}
-                    name="{{ column.name }}"
-                    value="{{ row[column.name] if row[column.name] is not none else '' }}"
-                    form="entity-row-{{ entity_key }}-{{ row.id }}"
-                    {% if column.type == 'text' %}maxlength="255"{% endif %}>
+                  {% if not column.get("read_only") %}
+                    <input class="table-input hidden" type="{{ 'number' if column.type == 'number' else ('date' if column.type == 'date' else 'text') }}"
+                      {% if column.type == 'number' %}step="{{ column.step or '0.01' }}"{% endif %}
+                      name="{{ column.name }}"
+                      value="{{ row[column.name] if row[column.name] is not none else '' }}"
+                      form="entity-row-{{ entity_key }}-{{ row.id }}"
+                      {% if column.type == 'text' %}maxlength="255"{% endif %}>
+                  {% endif %}
                 </td>
               {% endfor %}
               <td>

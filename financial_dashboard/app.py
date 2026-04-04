@@ -31,6 +31,7 @@ try:
     from .routes.spending import register_spending_routes
     from .routes.stocks import register_stocks_routes
     from .routes.utility_bills import register_utility_bills_routes
+    from .routes.workspaces import compute_fixed_deposit_days_to_mature
 except ImportError:
     from routes.bank_accounts import register_bank_account_routes
     from routes.chits import register_chits_routes
@@ -43,6 +44,7 @@ except ImportError:
     from routes.spending import register_spending_routes
     from routes.stocks import register_stocks_routes
     from routes.utility_bills import register_utility_bills_routes
+    from routes.workspaces import compute_fixed_deposit_days_to_mature
 
 
 app = Flask(__name__)
@@ -78,7 +80,7 @@ ENTITY_CONFIG = {
             {"name": "maturity_date", "label": "Maturity Date", "type": "date"},
             {"name": "created_date", "label": "Created Date", "type": "date"},
             {"name": "current_amount", "label": "Current Amount", "type": "number", "step": "0.01"},
-            {"name": "days_to_mature", "label": "Days To Mature", "type": "number", "step": "1"},
+            {"name": "days_to_mature", "label": "Days To Mature", "type": "number", "step": "1", "read_only": True},
         ],
     },
     "stocks": {
@@ -252,8 +254,13 @@ def compute_mutual_fund_returns_pct(row: dict[str, Any]) -> float:
     average_nav = as_float(row.get("average_nav"))
     units = as_float(row.get("units"))
     latest_nav = as_float(row.get("latest_nav"))
-    invested = average_nav * units
-    current_value = latest_nav * units
+    invested_value = as_float(row.get("amount_invested")) if row.get("amount_invested") is not None else 0.0
+    invested = invested_value if invested_value else average_nav * units
+    current_value_source = row.get("current_value")
+    if current_value_source is not None:
+        current_value = as_float(current_value_source)
+    else:
+        current_value = latest_nav * units
     if invested:
         return ((current_value - invested) / invested) * 100
     return 0.0
@@ -992,13 +999,14 @@ def build_dashboard_metrics() -> dict[str, Any]:
             CONCAT(COALESCE(u.full_name, 'Unknown'), ' / ', COALESCE(b.name, 'Unknown')) AS bank,
             fd.maturity_date,
             fd.current_amount,
-            fd.days_to_mature
+            DATEDIFF(fd.maturity_date, CURDATE()) AS days_to_mature
         FROM fixed_deposits fd
         LEFT JOIN bank_accounts ba ON ba.id = fd.account_id
         LEFT JOIN users u ON u.id = ba.user_id
         LEFT JOIN banks b ON b.id = ba.bank_id
-        WHERE fd.days_to_mature BETWEEN 0 AND 120
-        ORDER BY fd.days_to_mature ASC
+        WHERE fd.maturity_date IS NOT NULL
+          AND DATEDIFF(fd.maturity_date, CURDATE()) BETWEEN 0 AND 120
+        ORDER BY days_to_mature ASC
         LIMIT 5
         """
     )
@@ -1069,6 +1077,8 @@ def serialize_form(entity_key: str, form_data: Any) -> dict[str, Any]:
     entity = ENTITY_CONFIG[entity_key]
     values: dict[str, Any] = {}
     for column in entity["columns"]:
+        if column.get("read_only"):
+            continue
         raw = form_data.get(column["name"], "").strip()
         if column["type"] == "number":
             values[column["name"]] = as_float(raw)
@@ -1477,8 +1487,15 @@ def entity_list(entity_key: str) -> str:
         for row in rows:
             latest_nav = as_float(row.get("latest_nav"))
             units = as_float(row.get("units"))
-            row["current_value"] = latest_nav * units
+            if row.get("current_value") is not None:
+                current_value = as_float(row["current_value"])
+            else:
+                current_value = latest_nav * units
+            row["current_value"] = current_value
             row["returns_pct"] = compute_mutual_fund_returns_pct(row)
+    elif entity_key == "fixed_deposits":
+        for row in rows:
+            row["days_to_mature"] = compute_fixed_deposit_days_to_mature(row)
     context = build_generic_entity_context(entity_key, rows)
     return render_template(
         "entity_list.html",

@@ -38,6 +38,12 @@
             {% if integration_panel.last_sync_at %}
               <span class="pill-stat"><strong>{{ integration_panel.last_sync_at }}</strong> last sync</span>
             {% endif %}
+            {% if integration_panel.mutual_fund_count is not none %}
+              <span class="pill-stat"><strong>{{ integration_panel.mutual_fund_count }}</strong> mutual funds</span>
+            {% endif %}
+            {% if integration_panel.mutual_fund_schemes_configured is not none %}
+              <span class="pill-stat"><strong>{{ integration_panel.mutual_fund_schemes_configured }}</strong> with scheme code</span>
+            {% endif %}
           </div>
         </div>
 
@@ -73,6 +79,11 @@
               <form method="post" action="{{ url_for('zerodha_sync') }}" class="inline">
                 <button type="submit">Sync Holdings</button>
               </form>
+              {% if integration_panel.mutual_fund_sync_url %}
+                <form method="post" action="{{ integration_panel.mutual_fund_sync_url }}" class="inline">
+                  <button type="submit" class="btn secondary">Sync Mutual Funds</button>
+                </form>
+              {% endif %}
               <form method="post" action="{{ url_for('clear_manual_stock_holdings') }}" class="inline" onsubmit="return confirm('Clear all manual stock holdings and keep only Zerodha-synced rows?');">
                 <button type="submit" class="btn secondary">Clear Manual Holdings</button>
               </form>
@@ -82,6 +93,9 @@
             </div>
             {% if integration_panel.connected_at %}
               <div class="footer-note">Connected at {{ integration_panel.connected_at }}.</div>
+            {% endif %}
+            {% if integration_panel.mutual_fund_last_sync_at %}
+              <div class="footer-note">Mutual fund NAVs last synced at {{ integration_panel.mutual_fund_last_sync_at }}.</div>
             {% endif %}
           </article>
         </div>
