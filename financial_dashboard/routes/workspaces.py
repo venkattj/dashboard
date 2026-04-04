@@ -78,6 +78,24 @@ def _normalize_date(value: Any) -> date | None:
     return None
 
 
+def compute_fixed_deposit_current_amount(row: dict[str, Any], as_float: Callable[[Any], float], today: date | None = None) -> float:
+    invested = as_float(row.get("invested"))
+    if invested <= 0:
+        return 0.0
+    rate_pct = as_float(row.get("interest_rate"))
+    rate = rate_pct / 100.0
+    created_date = _normalize_date(row.get("created_date"))
+    maturity_date = _normalize_date(row.get("maturity_date"))
+    base = today or datetime.now().date()
+    start = created_date or base
+    end = maturity_date or base
+    if end > base:
+        end = base
+    duration_days = max((end - start).days, 0)
+    accrued = invested * rate * (duration_days / 365)
+    return invested + accrued
+
+
 def compute_fixed_deposit_days_to_mature(row: dict[str, Any], today: date | None = None) -> int | None:
     maturity_date = _normalize_date(row.get("maturity_date"))
     if maturity_date is None:
@@ -120,16 +138,17 @@ def build_banking_workspace(
         LEFT JOIN bank_accounts ba ON ba.id = fd.account_id
         LEFT JOIN users u ON u.id = ba.user_id
         LEFT JOIN banks b ON b.id = ba.bank_id
-        ORDER BY fd.current_amount DESC, fd.id DESC
+        ORDER BY fd.id DESC
         """
     )
 
     bank_total = sum(as_float(row["balance"]) for row in bank_rows)
-    fd_total = sum(as_float(row["current_amount"]) for row in fd_rows)
-    fd_invested = sum(as_float(row["invested"]) for row in fd_rows)
     today = datetime.now().date()
     for row in fd_rows:
+        row["current_amount"] = compute_fixed_deposit_current_amount(row, as_float, today)
         row["days_to_mature"] = compute_fixed_deposit_days_to_mature(row, today)
+    fd_total = sum(as_float(row["current_amount"]) for row in fd_rows)
+    fd_invested = sum(as_float(row["invested"]) for row in fd_rows)
     low_balance_count = sum(1 for row in bank_rows if as_float(row["balance"]) < 5000)
     soon_maturing = sum(
         1 for row in fd_rows if row.get("days_to_mature") is not None and 0 <= row["days_to_mature"] <= 120

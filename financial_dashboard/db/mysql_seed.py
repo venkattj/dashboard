@@ -84,7 +84,6 @@ TABLE_DEFINITIONS = {
         "`interest_rate` DOUBLE NOT NULL DEFAULT 0",
         "`maturity_date` DATE NULL",
         "`created_date` DATE NULL",
-        "`current_amount` DOUBLE NOT NULL DEFAULT 0",
     ],
     "stocks": [
         "`id` INT PRIMARY KEY AUTO_INCREMENT",
@@ -351,7 +350,6 @@ def parse_workbook_rows(path: Path) -> dict[str, list[dict[str, Any]]]:
                     "interest_rate": as_float(row[3]),
                     "maturity_date": row[4],
                     "created_date": row[5],
-                    "current_amount": as_float(row[7]),
                 }
             )
 
@@ -440,9 +438,12 @@ def parse_workbook_rows(path: Path) -> dict[str, list[dict[str, Any]]]:
 
     for row in sheets.get("Earnings", [])[1:]:
         if len(row) >= 5 and is_number(row[0]):
+            income_type = str(row[1]).strip()
+            if not income_type:
+                continue
             dataset["earnings"].append(
                 {
-                    "income_type": row[1],
+                    "income_type": income_type,
                     "amount": as_float(row[2]),
                     "person": row[3],
                     "source": row[4],

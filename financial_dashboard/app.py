@@ -31,7 +31,10 @@ try:
     from .routes.spending import register_spending_routes
     from .routes.stocks import register_stocks_routes
     from .routes.utility_bills import register_utility_bills_routes
-    from .routes.workspaces import compute_fixed_deposit_days_to_mature
+    from .routes.workspaces import (
+        compute_fixed_deposit_current_amount,
+        compute_fixed_deposit_days_to_mature,
+    )
 except ImportError:
     from routes.bank_accounts import register_bank_account_routes
     from routes.chits import register_chits_routes
@@ -44,7 +47,10 @@ except ImportError:
     from routes.spending import register_spending_routes
     from routes.stocks import register_stocks_routes
     from routes.utility_bills import register_utility_bills_routes
-    from routes.workspaces import compute_fixed_deposit_days_to_mature
+    from routes.workspaces import (
+        compute_fixed_deposit_current_amount,
+        compute_fixed_deposit_days_to_mature,
+    )
 
 
 app = Flask(__name__)
@@ -955,10 +961,196 @@ def build_excel_template() -> BytesIO:
     return output
 
 
+def _format_workbook_value(value: Any) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, datetime):
+        return value.strftime("%Y-%m-%d")
+    return str(value)
+
+
+def _sheet_xml_with_rows(headers: list[str], rows: list[list[Any]]) -> bytes:
+    data_rows = [headers] + rows
+    rows_xml = []
+    for row_index, row in enumerate(data_rows, start=1):
+        cells = []
+        for col_index, value in enumerate(row, start=1):
+            ref = f"{excel_column_name(col_index)}{row_index}"
+            text = escape(_format_workbook_value(value))
+            cells.append(f'<c r="{ref}" t="inlineStr"><is><t>{text}</t></is></c>')
+        rows_xml.append(f'<row r="{row_index}">{"".join(cells)}</row>')
+    dimension = f"A1:{excel_column_name(len(headers))}{len(data_rows)}" if headers else "A1:A1"
+    return (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+        f'<dimension ref="{dimension}"/>'
+        "<sheetViews><sheetView workbookViewId=\"0\"/></sheetViews>"
+        "<sheetFormatPr defaultRowHeight=\"15\"/>"
+        f"<sheetData>{''.join(rows_xml)}</sheetData>"
+        "</worksheet>"
+    ).encode("utf-8")
+
+
+def build_workbook_from_data(sheets: list[tuple[str, list[str], list[list[Any]]]]) -> BytesIO:
+    output = BytesIO()
+    sheet_names = [name for name, _, _ in sheets]
+    with zipfile.ZipFile(output, "w", compression=zipfile.ZIP_DEFLATED) as workbook:
+        workbook.writestr("[Content_Types].xml", content_types_xml(len(sheets)))
+        workbook.writestr("_rels/.rels", root_rels_xml())
+        workbook.writestr("docProps/app.xml", docprops_app_xml(sheet_names))
+        workbook.writestr("docProps/core.xml", docprops_core_xml())
+        workbook.writestr("xl/workbook.xml", workbook_xml(sheet_names))
+        workbook.writestr("xl/_rels/workbook.xml.rels", workbook_rels_xml(len(sheets)))
+        workbook.writestr("xl/styles.xml", styles_xml())
+        for index, (_sheet_name, headers, rows) in enumerate(sheets, start=1):
+            workbook.writestr(f"xl/worksheets/sheet{index}.xml", _sheet_xml_with_rows(headers, rows))
+    output.seek(0)
+    return output
+
+
+def build_workbook_from_db() -> BytesIO:
+    today = datetime.now().date()
+
+    def rows_from_query(columns: list[str], query: str) -> list[list[Any]]:
+        data = fetch_all(query)
+        return [[row.get(col) for col in columns] for row in data]
+
+    user_columns = TEMPLATE_SHEETS[0][1]
+    user_rows = rows_from_query(
+        user_columns,
+        """SELECT id, full_name, username, email, password_hash, zerodha_api_key, zerodha_api_secret,
+           zerodha_access_token, zerodha_public_token, zerodha_user_id, zerodha_user_name, zerodha_token_expires_at,
+           zerodha_connected_at, zerodha_last_sync_at, created_at FROM users ORDER BY id""",
+    )
+    bank_columns = TEMPLATE_SHEETS[1][1]
+    bank_rows = rows_from_query(bank_columns, "SELECT id, name FROM banks ORDER BY id")
+    bank_account_columns = TEMPLATE_SHEETS[2][1]
+    bank_account_rows = rows_from_query(
+        bank_account_columns, "SELECT id, user_id, bank_id, balance, purpose FROM bank_accounts ORDER BY id"
+    )
+
+    fd_headers = TEMPLATE_SHEETS[3][1]
+    fd_rows_raw = fetch_all("SELECT * FROM fixed_deposits ORDER BY id")
+    fd_rows_data: list[list[Any]] = []
+    for idx, row in enumerate(fd_rows_raw, start=1):
+        current_amount = compute_fixed_deposit_current_amount(row, as_float, today)
+        days = compute_fixed_deposit_days_to_mature(row, today)
+        fd_rows_data.append(
+            [
+                idx,
+                row.get("account_id"),
+                row.get("invested"),
+                row.get("interest_rate"),
+                row.get("maturity_date"),
+                row.get("created_date"),
+                today.isoformat(),
+                current_amount,
+                days if days is not None else "",
+            ]
+        )
+
+    stock_headers = TEMPLATE_SHEETS[4][1]
+    stock_rows_raw = fetch_all(
+        "SELECT symbol, exchange, isin, average_price, current_price, quantity, source FROM stocks ORDER BY id"
+    )
+    stock_rows_data = []
+    for idx, row in enumerate(stock_rows_raw, start=1):
+        stock_rows_data.append(
+            [
+                idx,
+                row.get("symbol"),
+                row.get("exchange"),
+                row.get("isin"),
+                row.get("average_price"),
+                row.get("current_price"),
+                row.get("quantity"),
+                row.get("source"),
+            ]
+        )
+
+    mf_headers = TEMPLATE_SHEETS[5][1]
+    mf_rows_raw = fetch_all("SELECT * FROM mutual_funds ORDER BY id")
+    mf_rows_data = []
+    for idx, row in enumerate(mf_rows_raw, start=1):
+        latest_nav = as_float(row.get("latest_nav"))
+        units = as_float(row.get("units"))
+        row["current_value"] = latest_nav * units
+        returns_pct = compute_mutual_fund_returns_pct(row)
+        mf_rows_data.append([idx, row.get("fund_name"), row.get("invested"), returns_pct, row.get("sip"), row["current_value"]])
+
+    utility_headers = TEMPLATE_SHEETS[6][1]
+    utility_rows = rows_from_query(utility_headers[1:], "SELECT bill_type, amount FROM utility_bills ORDER BY id")
+    utility_rows = [[idx + 1, *row] for idx, row in enumerate(utility_rows)]
+
+    loan_headers = TEMPLATE_SHEETS[7][1]
+    loan_rows_raw = fetch_all("SELECT borrower, amount, interest_rate FROM loans ORDER BY id")
+    loan_rows = [[idx + 1, row.get("borrower"), row.get("amount"), row.get("interest_rate")] for idx, row in enumerate(loan_rows_raw)]
+
+    earnings_headers = TEMPLATE_SHEETS[8][1]
+    earnings_rows_raw = fetch_all("SELECT income_type, amount, person, source FROM earnings ORDER BY id")
+    earnings_rows = [[idx + 1, *[row.get(col.lower()) for col in earnings_headers[1:]]] for idx, row in enumerate(earnings_rows_raw)]
+
+    spending_headers = TEMPLATE_SHEETS[9][1]
+    spending_rows_raw = fetch_all("SELECT spending_type, amount, person, recipient FROM spending ORDER BY id")
+    spending_rows = [[row.get("spending_type"), row.get("amount"), row.get("person"), row.get("recipient")] for row in spending_rows_raw]
+
+    std_headers = TEMPLATE_SHEETS[10][1]
+    std_rows_raw = fetch_all("SELECT organization, value, duration_months, paid_months, emi, maturity_date, started_date, current_value, note FROM standard_chits ORDER BY id")
+    standard_rows = []
+    for idx, row in enumerate(std_rows_raw, start=1):
+        standard_rows.append(
+            [
+                idx,
+                row.get("organization"),
+                row.get("value"),
+                row.get("duration_months"),
+                row.get("paid_months"),
+                row.get("emi"),
+                row.get("maturity_date"),
+                row.get("started_date"),
+                row.get("current_value"),
+                row.get("note"),
+            ]
+        )
+
+    variable_headers = TEMPLATE_SHEETS[11][1]
+    variable_rows_raw = fetch_all("SELECT name, value, months, maturity_date, total_paid, start_date, net_value, emi_paid FROM variable_chits ORDER BY id")
+    variable_rows = [[row.get("name"), row.get("value"), row.get("months"), row.get("maturity_date"), row.get("total_paid"), row.get("start_date"), row.get("net_value"), row.get("emi_paid")] for row in variable_rows_raw]
+
+    sneha_headers = TEMPLATE_SHEETS[12][1]
+    sneha_rows_raw = fetch_all("SELECT payment_date, amount, principal_balance FROM sneha_payments ORDER BY id")
+    sneha_rows = [[idx + 1, row.get("payment_date"), row.get("amount"), row.get("principal_balance")] for idx, row in enumerate(sneha_rows_raw)]
+
+    overall_headers = TEMPLATE_SHEETS[13][1]
+    overall_rows_raw = fetch_all("SELECT label, amount, note FROM overall_assets ORDER BY id")
+    overall_rows = [[row.get("label"), row.get("amount"), row.get("note"), ""] for row in overall_rows_raw]
+
+    sheets_data = [
+        ("Users", user_columns, user_rows),
+        ("Banks", bank_columns, bank_rows),
+        ("bank_accounts", bank_account_columns, bank_account_rows),
+        ("Fixed Deposit", fd_headers, fd_rows_data),
+        ("Stocks", stock_headers, stock_rows_data),
+        ("Mutal Funds", mf_headers, mf_rows_data),
+        ("Utility Bills", utility_headers, utility_rows),
+        ("Loans", loan_headers, loan_rows),
+        ("Earnings", earnings_headers, earnings_rows),
+        ("Spending", spending_headers, spending_rows),
+        ("Standard_Chits", std_headers, standard_rows),
+        ("Variable_Chit", variable_headers, variable_rows),
+        ("sneha", sneha_headers, sneha_rows),
+        ("Overall", overall_headers, overall_rows),
+    ]
+    return build_workbook_from_data(sheets_data)
+
+
 def build_dashboard_metrics() -> dict[str, Any]:
+    today = datetime.now().date()
+    fd_rows = fetch_all("SELECT * FROM fixed_deposits")
+    fd_total = sum(compute_fixed_deposit_current_amount(row, as_float, today) for row in fd_rows)
     totals = {
         "bank": fetch_one("SELECT COALESCE(SUM(balance), 0) AS total FROM bank_accounts")["total"],
-        "fd": fetch_one("SELECT COALESCE(SUM(current_amount), 0) AS total FROM fixed_deposits")["total"],
+        "fd": fd_total,
         "stocks": fetch_one("SELECT COALESCE(SUM(current_price * quantity), 0) AS total FROM stocks")["total"],
         "mutual_funds": fetch_one("SELECT COALESCE(SUM(latest_nav * units), 0) AS total FROM mutual_funds")[
             "total"
@@ -996,20 +1188,22 @@ def build_dashboard_metrics() -> dict[str, Any]:
     upcoming_fds = fetch_all(
         """
         SELECT
+            fd.*,
             CONCAT(COALESCE(u.full_name, 'Unknown'), ' / ', COALESCE(b.name, 'Unknown')) AS bank,
-            fd.maturity_date,
-            fd.current_amount,
-            DATEDIFF(fd.maturity_date, CURDATE()) AS days_to_mature
+            ba.purpose AS account_purpose
         FROM fixed_deposits fd
         LEFT JOIN bank_accounts ba ON ba.id = fd.account_id
         LEFT JOIN users u ON u.id = ba.user_id
         LEFT JOIN banks b ON b.id = ba.bank_id
         WHERE fd.maturity_date IS NOT NULL
           AND DATEDIFF(fd.maturity_date, CURDATE()) BETWEEN 0 AND 120
-        ORDER BY days_to_mature ASC
+        ORDER BY fd.maturity_date ASC
         LIMIT 5
         """
     )
+    for row in upcoming_fds:
+        row["current_amount"] = compute_fixed_deposit_current_amount(row, as_float, today)
+        row["days_to_mature"] = compute_fixed_deposit_days_to_mature(row, today)
     highest_balances = fetch_all(
         """
         SELECT u.full_name AS account_holder, b.name AS bank_name, ba.balance
@@ -1307,6 +1501,16 @@ def download_template():
     )
 
 
+@app.post("/update-workbook")
+def update_workbook():
+    workbook = build_workbook_from_db()
+    WORKBOOK_PATH.parent.mkdir(parents=True, exist_ok=True)
+    with open(WORKBOOK_PATH, "wb") as handle:
+        handle.write(workbook.getvalue())
+    flash("Excel workbook updated from the dashboard.", "success")
+    return redirect(url_for("dashboard"))
+
+
 @app.post("/stocks/zerodha/settings")
 def zerodha_settings():
     user = get_current_user()
@@ -1493,6 +1697,10 @@ def entity_list(entity_key: str) -> str:
                 current_value = latest_nav * units
             row["current_value"] = current_value
             row["returns_pct"] = compute_mutual_fund_returns_pct(row)
+    elif entity_key == "fixed_deposits":
+        for row in rows:
+            row["current_amount"] = compute_fixed_deposit_current_amount(row, as_float)
+            row["days_to_mature"] = compute_fixed_deposit_days_to_mature(row)
     elif entity_key == "fixed_deposits":
         for row in rows:
             row["days_to_mature"] = compute_fixed_deposit_days_to_mature(row)

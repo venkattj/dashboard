@@ -14,6 +14,9 @@
         <form method="post" action="{{ url_for('reload_data') }}">
           <button type="submit">Reload From Workbook</button>
         </form>
+        <form method="post" action="{{ url_for('update_workbook') }}">
+          <button type="submit" class="btn secondary">Update Excel Workbook</button>
+        </form>
       </div>
     </div>
   </section>
