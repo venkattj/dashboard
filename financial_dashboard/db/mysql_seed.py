@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import re
 import sys
 import zipfile
 from typing import Any
@@ -100,10 +101,12 @@ TABLE_DEFINITIONS = {
     "mutual_funds": [
         "`id` INT PRIMARY KEY AUTO_INCREMENT",
         "`fund_name` VARCHAR(255) NOT NULL",
-        "`invested` DOUBLE NOT NULL DEFAULT 0",
-        "`returns_pct` DOUBLE NOT NULL DEFAULT 0",
+        "`scheme_code` VARCHAR(64) NULL",
         "`sip` DOUBLE NOT NULL DEFAULT 0",
-        "`current_value` DOUBLE NOT NULL DEFAULT 0",
+        "`units` DOUBLE NOT NULL DEFAULT 0",
+        "`average_nav` DOUBLE NOT NULL DEFAULT 0",
+        "`latest_nav` DOUBLE NOT NULL DEFAULT 0",
+        "`nav_synced_at` DATETIME NULL",
     ],
     "utility_bills": [
         "`id` INT PRIMARY KEY AUTO_INCREMENT",
@@ -380,23 +383,52 @@ def parse_workbook_rows(path: Path) -> dict[str, list[dict[str, Any]]]:
                     }
                 )
 
-    for row in sheets.get("Mutal Funds", [])[1:]:
-        if len(row) < 6:
-            continue
-        fund_name = str(row[1]).strip() if len(row) > 1 and row[1] is not None else ""
-        if not fund_name or is_number(fund_name):
-            continue
-        if not (is_number(row[2]) and is_number(row[3]) and is_number(row[4]) and is_number(row[5])):
-            continue
-        dataset["mutual_funds"].append(
-            {
-                "fund_name": fund_name,
-                "invested": as_float(row[2]),
-                "returns_pct": as_float(row[3]),
-                "sip": as_float(row[4]),
-                "current_value": as_float(row[5]),
-            }
-        )
+    mutual_rows = sheets.get("Mutal Funds", [])
+    if len(mutual_rows) > 1:
+        headers = [str(value).strip() for value in mutual_rows[0]]
+
+        def col_index(*variants: str) -> int | None:
+            normalized = {re.sub(r'[^a-z0-9]', '', header.lower()): idx for idx, header in enumerate(headers)}
+            for variant in variants:
+                idx = normalized.get(re.sub(r'[^a-z0-9]', '', variant.lower()))
+                if idx is not None:
+                    return idx
+            return None
+
+        fund_idx = col_index('fund name', 'name', 'fund_name')
+        scheme_idx = col_index('scheme code', 'scheme_code', 'schemecode')
+        sip_idx = col_index('sip', 'monthly sip', 'monthly_sip')
+        units_idx = col_index('units',)
+        avg_nav_idx = col_index('average nav', 'average_nav', 'avg nav', 'avg_nav')
+        latest_nav_idx = col_index('latest nav', 'latest_nav', 'current nav', 'current_nav')
+        synced_idx = col_index('nav synced at', 'nav_synced_at', 'synced at')
+
+        for row in mutual_rows[1:]:
+            fund_name = (row[fund_idx] if fund_idx is not None and fund_idx < len(row) else "") if fund_idx is not None else ""
+            fund_name = str(fund_name).strip()
+            if not fund_name or is_number(fund_name):
+                continue
+            scheme_value = (
+                str(row[scheme_idx]).strip() if scheme_idx is not None and scheme_idx < len(row) and row[scheme_idx] is not None else ""
+            )
+            sip_value = as_float(row[sip_idx]) if sip_idx is not None and sip_idx < len(row) else 0.0
+            units_value = as_float(row[units_idx]) if units_idx is not None and units_idx < len(row) else 0.0
+            average_nav_value = as_float(row[avg_nav_idx]) if avg_nav_idx is not None and avg_nav_idx < len(row) else 0.0
+            latest_nav_value = as_float(row[latest_nav_idx]) if latest_nav_idx is not None and latest_nav_idx < len(row) else 0.0
+            nav_synced_value = (
+                str(row[synced_idx]).strip() if synced_idx is not None and synced_idx < len(row) and row[synced_idx] else None
+            )
+            dataset["mutual_funds"].append(
+                {
+                    "fund_name": fund_name,
+                    "scheme_code": scheme_value,
+                    "sip": sip_value,
+                    "units": units_value,
+                    "average_nav": average_nav_value,
+                    "latest_nav": latest_nav_value,
+                    "nav_synced_at": nav_synced_value,
+                }
+            )
 
     for row in sheets.get("Utility Bills", [])[1:]:
         if len(row) >= 3 and is_number(row[0]):
@@ -528,6 +560,7 @@ def create_tables() -> None:
             ensure_bank_account_reference_columns(cur)
             ensure_fixed_deposit_reference_columns(cur)
             ensure_stock_sync_columns(cur)
+            ensure_mutual_fund_columns(cur)
             sync_bank_account_reference_data(cur)
 
 
@@ -646,6 +679,26 @@ def ensure_stock_sync_columns(cur) -> None:
         cur.execute("ALTER TABLE `stocks` ADD COLUMN `source` VARCHAR(32) NOT NULL DEFAULT 'manual' AFTER `quantity`")
     if not _column_exists(cur, "stocks", "last_synced_price_at"):
         cur.execute("ALTER TABLE `stocks` ADD COLUMN `last_synced_price_at` DATETIME NULL AFTER `source`")
+
+
+def ensure_mutual_fund_columns(cur) -> None:
+    if not _column_exists(cur, "mutual_funds", "scheme_code"):
+        cur.execute("ALTER TABLE `mutual_funds` ADD COLUMN `scheme_code` VARCHAR(64) NULL AFTER `fund_name`")
+    if not _column_exists(cur, "mutual_funds", "units"):
+        cur.execute("ALTER TABLE `mutual_funds` ADD COLUMN `units` DOUBLE NOT NULL DEFAULT 0 AFTER `sip`")
+    if not _column_exists(cur, "mutual_funds", "average_nav"):
+        cur.execute("ALTER TABLE `mutual_funds` ADD COLUMN `average_nav` DOUBLE NOT NULL DEFAULT 0 AFTER `units`")
+    if not _column_exists(cur, "mutual_funds", "latest_nav"):
+        cur.execute("ALTER TABLE `mutual_funds` ADD COLUMN `latest_nav` DOUBLE NOT NULL DEFAULT 0 AFTER `average_nav`")
+    if not _column_exists(cur, "mutual_funds", "nav_synced_at"):
+        cur.execute("ALTER TABLE `mutual_funds` ADD COLUMN `nav_synced_at` DATETIME NULL AFTER `latest_nav`")
+
+    if _column_exists(cur, "mutual_funds", "invested"):
+        cur.execute("ALTER TABLE `mutual_funds` DROP COLUMN `invested`")
+    if _column_exists(cur, "mutual_funds", "returns_pct"):
+        cur.execute("ALTER TABLE `mutual_funds` DROP COLUMN `returns_pct`")
+    if _column_exists(cur, "mutual_funds", "current_value"):
+        cur.execute("ALTER TABLE `mutual_funds` DROP COLUMN `current_value`")
 
 
 def ensure_fixed_deposit_reference_columns(cur) -> None:

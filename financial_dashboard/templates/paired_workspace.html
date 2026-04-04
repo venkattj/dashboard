@@ -24,67 +24,93 @@
     {% endfor %}
   </section>
 
-  {% if integration_panel and integration_panel.mode == "stocks" %}
-    <section class="card">
-      <div class="grid-header">
-        <div>
-          <div class="eyebrow">Broker Sync</div>
-          <h3 style="margin:0;">{{ integration_panel.provider }} Stocks Connection</h3>
-          <div class="kpi-note">Save your Zerodha app credentials, connect your account, then sync holdings into the local stocks table.</div>
-        </div>
-        <div class="header-tools">
-          <span class="pill-stat"><strong>{{ "Connected" if integration_panel.connected else "Not connected" }}</strong> broker status</span>
-          {% if integration_panel.last_sync_at %}
-            <span class="pill-stat"><strong>{{ integration_panel.last_sync_at }}</strong> last sync</span>
-          {% endif %}
-        </div>
-      </div>
-
-      <div class="grid metrics" style="margin-top:18px;">
-        <article class="card" style="padding:16px;">
-          <div class="eyebrow">Credentials</div>
-          <form method="post" action="{{ url_for('zerodha_settings') }}" class="compact-form">
-            <label>
-              Zerodha API Key
-              <input type="text" name="api_key" value="{{ integration_panel.api_key }}" required>
-            </label>
-            <label>
-              Zerodha API Secret
-              <input type="password" name="api_secret" placeholder="Paste your Kite app secret" required>
-            </label>
-            <button type="submit">Save Credentials</button>
-          </form>
-          <div class="footer-note">Set your Zerodha app redirect URL to <strong>{{ integration_panel.redirect_uri }}</strong>.</div>
-          <div class="footer-note">Open this dashboard using the same host shown there. Do not mix <strong>127.0.0.1</strong> and <strong>localhost</strong> during the Zerodha login flow.</div>
-        </article>
-
-        <article class="card" style="padding:16px;">
-          <div class="eyebrow">Connection</div>
-          <p class="kpi-note" style="margin-top:0;">
-            {% if integration_panel.connected %}
-              Connected as {{ integration_panel.user_name or integration_panel.user_id or "your Zerodha account" }}.
-            {% else %}
-              After saving credentials, open Zerodha login and approve access for this app.
+  {% if integration_panel %}
+    {% if integration_panel.mode == "stocks" %}
+      <section class="card">
+        <div class="grid-header">
+          <div>
+            <div class="eyebrow">Broker Sync</div>
+            <h3 style="margin:0;">{{ integration_panel.provider }} Stocks Connection</h3>
+            <div class="kpi-note">Save your Zerodha app credentials, connect your account, then sync holdings into the local stocks table.</div>
+          </div>
+          <div class="header-tools">
+            <span class="pill-stat"><strong>{{ "Connected" if integration_panel.connected else "Not connected" }}</strong> broker status</span>
+            {% if integration_panel.last_sync_at %}
+              <span class="pill-stat"><strong>{{ integration_panel.last_sync_at }}</strong> last sync</span>
             {% endif %}
-          </p>
-          <div class="actions">
-            <a class="btn" href="{{ url_for('zerodha_connect') }}">Connect Zerodha</a>
-            <form method="post" action="{{ url_for('zerodha_sync') }}" class="inline">
-              <button type="submit">Sync Holdings</button>
+          </div>
+        </div>
+
+        <div class="grid metrics" style="margin-top:18px;">
+          <article class="card" style="padding:16px;">
+            <div class="eyebrow">Credentials</div>
+            <form method="post" action="{{ url_for('zerodha_settings') }}" class="compact-form">
+              <label>
+                Zerodha API Key
+                <input type="text" name="api_key" value="{{ integration_panel.api_key }}" required>
+              </label>
+              <label>
+                Zerodha API Secret
+                <input type="password" name="api_secret" placeholder="Paste your Kite app secret" required>
+              </label>
+              <button type="submit">Save Credentials</button>
             </form>
-            <form method="post" action="{{ url_for('clear_manual_stock_holdings') }}" class="inline" onsubmit="return confirm('Clear all manual stock holdings and keep only Zerodha-synced rows?');">
-              <button type="submit" class="btn secondary">Clear Manual Holdings</button>
-            </form>
-            <form method="post" action="{{ url_for('zerodha_disconnect') }}" class="inline">
-              <button type="submit" class="btn secondary">Clear Session</button>
+            <div class="footer-note">Set your Zerodha app redirect URL to <strong>{{ integration_panel.redirect_uri }}</strong>.</div>
+            <div class="footer-note">Open this dashboard using the same host shown there. Do not mix <strong>127.0.0.1</strong> and <strong>localhost</strong> during the Zerodha login flow.</div>
+          </article>
+
+          <article class="card" style="padding:16px;">
+            <div class="eyebrow">Connection</div>
+            <p class="kpi-note" style="margin-top:0;">
+              {% if integration_panel.connected %}
+                Connected as {{ integration_panel.user_name or integration_panel.user_id or "your Zerodha account" }}.
+              {% else %}
+                After saving credentials, open Zerodha login and approve access for this app.
+              {% endif %}
+            </p>
+            <div class="actions">
+              <a class="btn" href="{{ url_for('zerodha_connect') }}">Connect Zerodha</a>
+              <form method="post" action="{{ url_for('zerodha_sync') }}" class="inline">
+                <button type="submit">Sync Holdings</button>
+              </form>
+              <form method="post" action="{{ url_for('clear_manual_stock_holdings') }}" class="inline" onsubmit="return confirm('Clear all manual stock holdings and keep only Zerodha-synced rows?');">
+                <button type="submit" class="btn secondary">Clear Manual Holdings</button>
+              </form>
+              <form method="post" action="{{ url_for('zerodha_disconnect') }}" class="inline">
+                <button type="submit" class="btn secondary">Clear Session</button>
+              </form>
+            </div>
+            {% if integration_panel.connected_at %}
+              <div class="footer-note">Connected at {{ integration_panel.connected_at }}.</div>
+            {% endif %}
+          </article>
+        </div>
+      </section>
+    {% elif integration_panel.mode == "mutual_funds" %}
+      <section class="card">
+        <div class="grid-header">
+          <div>
+            <div class="eyebrow">NAV Sync</div>
+            <h3 style="margin:0;">{{ integration_panel.provider }} Mutual Funds</h3>
+            <div class="kpi-note">Store the scheme code on the fund row to look up the latest NAVs and keep your computed totals accurate.</div>
+          </div>
+          <div class="header-tools">
+            <span class="pill-stat"><strong>{{ integration_panel.fund_count }}</strong> funds tracked</span>
+            <span class="pill-stat"><strong>{{ integration_panel.schemes_configured }}</strong> with scheme code</span>
+            <form method="post" action="{{ integration_panel.sync_url }}" class="inline">
+              <button type="submit" class="btn">Sync NAVs</button>
             </form>
           </div>
-          {% if integration_panel.connected_at %}
-            <div class="footer-note">Connected at {{ integration_panel.connected_at }}.</div>
+        </div>
+        <div style="margin-top:12px;" class="kpi-note">
+          {% if integration_panel.last_sync_at %}
+            Last sync at {{ integration_panel.last_sync_at }}.
+          {% else %}
+            No NAV sync has run yet. Run the sync to recalc returns from the latest NAVs.
           {% endif %}
-        </article>
-      </div>
-    </section>
+        </div>
+      </section>
+    {% endif %}
   {% endif %}
 
   {% for section in sections %}

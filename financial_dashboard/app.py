@@ -87,12 +87,10 @@ ENTITY_CONFIG = {
         "table": "stocks",
         "columns": [
             {"name": "symbol", "label": "Symbol", "type": "text"},
-            {"name": "exchange", "label": "Exchange", "type": "text"},
-            {"name": "isin", "label": "ISIN", "type": "text"},
             {"name": "average_price", "label": "Average Price", "type": "number", "step": "0.01"},
             {"name": "current_price", "label": "Current Price", "type": "number", "step": "0.01"},
+            {"name": "returns_pct", "label": "Returns %", "type": "number", "step": "0.01"},
             {"name": "quantity", "label": "Quantity", "type": "number", "step": "1"},
-            {"name": "source", "label": "Source", "type": "text"},
             {"name": "last_synced_price_at", "label": "Price Synced At", "type": "text"},
         ],
     },
@@ -102,10 +100,13 @@ ENTITY_CONFIG = {
         "table": "mutual_funds",
         "columns": [
             {"name": "fund_name", "label": "Fund Name", "type": "text"},
-            {"name": "invested", "label": "Invested", "type": "number", "step": "0.01"},
-            {"name": "returns_pct", "label": "Returns %", "type": "number", "step": "0.01"},
-            {"name": "sip", "label": "Monthly SIP", "type": "number", "step": "0.01"},
             {"name": "current_value", "label": "Current Value", "type": "number", "step": "0.01"},
+            {"name": "returns_pct", "label": "Returns %", "type": "number", "step": "0.01"},
+            {"name": "units", "label": "Units", "type": "number", "step": "0.01"},
+            {"name": "average_nav", "label": "Average NAV", "type": "number", "step": "0.0001"},
+            {"name": "latest_nav", "label": "Latest NAV", "type": "number", "step": "0.0001"},
+            {"name": "sip", "label": "Monthly SIP", "type": "number", "step": "0.01"},
+            {"name": "nav_synced_at", "label": "NAV Synced At", "type": "text"},
         ],
     },
     "utility_bills": {
@@ -237,6 +238,25 @@ def as_int(value: Any, default: int = 0) -> int:
         return int(float(value))
     except (TypeError, ValueError):
         return default
+
+
+def compute_stock_returns_pct(row: dict[str, Any]) -> float:
+    average = as_float(row.get("average_price"))
+    current = as_float(row.get("current_price"))
+    if average:
+        return ((current - average) / average) * 100
+    return 0.0
+
+
+def compute_mutual_fund_returns_pct(row: dict[str, Any]) -> float:
+    average_nav = as_float(row.get("average_nav"))
+    units = as_float(row.get("units"))
+    latest_nav = as_float(row.get("latest_nav"))
+    invested = average_nav * units
+    current_value = latest_nav * units
+    if invested:
+        return ((current_value - invested) / invested) * 100
+    return 0.0
 
 
 
@@ -933,7 +953,9 @@ def build_dashboard_metrics() -> dict[str, Any]:
         "bank": fetch_one("SELECT COALESCE(SUM(balance), 0) AS total FROM bank_accounts")["total"],
         "fd": fetch_one("SELECT COALESCE(SUM(current_amount), 0) AS total FROM fixed_deposits")["total"],
         "stocks": fetch_one("SELECT COALESCE(SUM(current_price * quantity), 0) AS total FROM stocks")["total"],
-        "mutual_funds": fetch_one("SELECT COALESCE(SUM(current_value), 0) AS total FROM mutual_funds")["total"],
+        "mutual_funds": fetch_one("SELECT COALESCE(SUM(latest_nav * units), 0) AS total FROM mutual_funds")[
+            "total"
+        ],
         "loans_receivable": fetch_one("SELECT COALESCE(SUM(amount), 0) AS total FROM loans WHERE amount > 0")["total"],
         "loan_obligations": fetch_one("SELECT ABS(COALESCE(SUM(amount), 0)) AS total FROM loans WHERE amount < 0")[
             "total"
@@ -1166,6 +1188,7 @@ register_mutual_funds_routes(
     entity_config=ENTITY_CONFIG,
     fetch_all=fetch_all,
     as_float=as_float,
+    execute=execute,
 )
 
 
@@ -1437,16 +1460,25 @@ def entity_list(entity_key: str) -> str:
     else:
         query = f"SELECT * FROM {entity['table']}"
         params = ()
+        filters = []
         if search:
-            filters = []
             for column in columns:
                 if column["type"] == "text":
                     filters.append(f"{column['name']} LIKE ?")
                     params += (f"%{search}%",)
-            if filters:
-                query += " WHERE " + " OR ".join(filters)
+        if filters:
+            query += " WHERE " + " OR ".join(filters)
         query += " ORDER BY id DESC"
         rows = fetch_all(query, params)
+    if entity_key == "stocks":
+        for row in rows:
+            row["returns_pct"] = compute_stock_returns_pct(row)
+    elif entity_key == "mutual_funds":
+        for row in rows:
+            latest_nav = as_float(row.get("latest_nav"))
+            units = as_float(row.get("units"))
+            row["current_value"] = latest_nav * units
+            row["returns_pct"] = compute_mutual_fund_returns_pct(row)
     context = build_generic_entity_context(entity_key, rows)
     return render_template(
         "entity_list.html",
@@ -1471,6 +1503,8 @@ def entity_inline_update(entity_key: str, row_id: int):
             (user_id, bank_id, values["balance"], values["purpose"], row_id),
         )
     else:
+        if entity_key == "mutual_funds":
+            values.pop("current_value", None)
         assignments = ", ".join(f"{name} = ?" for name in values)
         execute(
             f"UPDATE {entity['table']} SET {assignments} WHERE id = ?",
@@ -1496,6 +1530,8 @@ def entity_create(entity_key: str) -> str:
                 (user_id, bank_id, values["balance"], values["purpose"]),
             )
         else:
+            if entity_key == "mutual_funds":
+                values.pop("current_value", None)
             columns = list(values.keys())
             execute(
                 f"INSERT INTO {entity['table']} ({', '.join(columns)}) VALUES ({', '.join('?' for _ in columns)})",

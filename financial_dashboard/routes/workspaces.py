@@ -23,6 +23,30 @@ def _section(
     }
 
 
+def _stock_returns_pct(row: dict[str, Any], as_float: Callable[[Any], float]) -> float:
+    average = as_float(row.get("average_price"))
+    current = as_float(row.get("current_price"))
+    if average:
+        return ((current - average) / average) * 100
+    return 0.0
+
+
+def _mutual_fund_invested(row: dict[str, Any], as_float: Callable[[Any], float]) -> float:
+    return as_float(row.get("average_nav")) * as_float(row.get("units"))
+
+
+def _mutual_fund_current_value(row: dict[str, Any], as_float: Callable[[Any], float]) -> float:
+    return as_float(row.get("latest_nav")) * as_float(row.get("units"))
+
+
+def _mutual_fund_returns_pct(row: dict[str, Any], as_float: Callable[[Any], float]) -> float:
+    invested = _mutual_fund_invested(row, as_float)
+    current_value = as_float(row.get("current_value"))
+    if invested:
+        return ((current_value - invested) / invested) * 100
+    return 0.0
+
+
 def build_banking_workspace(
     entity_config: dict[str, Any],
     fetch_all: Callable[..., list],
@@ -159,28 +183,43 @@ def build_markets_workspace(
     entity_config: dict[str, Any],
     fetch_all: Callable[..., list],
     as_float: Callable[[Any], float],
+    mutual_fund_rows: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     stock_rows = fetch_all("SELECT * FROM stocks ORDER BY current_price * quantity DESC, id DESC")
-    mf_rows = fetch_all("SELECT * FROM mutual_funds ORDER BY current_value DESC, id DESC")
+    mf_rows = mutual_fund_rows if mutual_fund_rows is not None else fetch_all(
+        "SELECT * FROM mutual_funds ORDER BY latest_nav * units DESC, id DESC"
+    )
+
+    enriched_mf_rows = []
+    for row in mf_rows:
+        current_value = _mutual_fund_current_value(row, as_float)
+        returns_pct = _mutual_fund_returns_pct(row, as_float)
+        enriched_mf_rows.append({**row, "current_value": current_value, "returns_pct": returns_pct})
 
     enriched_stock_rows = []
     for row in stock_rows:
         market_value = as_float(row["current_price"]) * as_float(row["quantity"])
-        enriched_stock_rows.append({**row, "market_value": market_value})
+        enriched_stock_rows.append(
+            {
+                **row,
+                "market_value": market_value,
+                "returns_pct": _stock_returns_pct(row, as_float),
+            }
+        )
 
     stock_current = sum(as_float(row["market_value"]) for row in enriched_stock_rows)
     stock_cost = sum(as_float(row["average_price"]) * as_float(row["quantity"]) for row in enriched_stock_rows)
-    mf_current = sum(as_float(row["current_value"]) for row in mf_rows)
-    mf_invested = sum(as_float(row["invested"]) for row in mf_rows)
-    total_sip = sum(as_float(row["sip"]) for row in mf_rows)
+    mf_current = sum(as_float(row["current_value"]) for row in enriched_mf_rows)
+    mf_invested = sum(_mutual_fund_invested(row, as_float) for row in enriched_mf_rows)
+    total_sip = sum(as_float(row["sip"]) for row in enriched_mf_rows)
     best_stock = max(
         enriched_stock_rows,
         key=lambda row: (as_float(row["current_price"]) - as_float(row["average_price"])) * as_float(row["quantity"]),
         default=None,
     )
     best_fund = max(
-        mf_rows,
-        key=lambda row: as_float(row["current_value"]) - as_float(row["invested"]),
+        enriched_mf_rows,
+        key=lambda row: as_float(row["current_value"]) - _mutual_fund_invested(row, as_float),
         default=None,
     )
 
@@ -191,7 +230,7 @@ def build_markets_workspace(
         "description": "This workspace brings listed holdings and mutual funds together so you can compare exposure, portfolio growth, and recurring SIP load in a single place.",
         "chips": [
             {"label": f"{len(stock_rows)} stock positions"},
-            {"label": f"{len(mf_rows)} mutual funds"},
+            {"label": f"{len(enriched_mf_rows)} mutual funds"},
             {"label": f"Rs. {total_sip:,.2f} SIP load"},
         ],
         "metrics": [
@@ -217,13 +256,21 @@ def build_markets_workspace(
             _section(
                 "mutual_funds",
                 entity_config,
-                mf_rows,
+                enriched_mf_rows,
                 mf_current,
                 "visible mutual fund value",
                 "current_value",
                 [
-                    {"label": "Funds", "value": len(mf_rows), "note": "Tracked mutual fund positions."},
-                    {"label": "Top fund", "value": best_fund["fund_name"] if best_fund else "No data", "note": f"Rs. {as_float(best_fund['current_value']) - as_float(best_fund['invested']):,.2f} gain" if best_fund else "No fund records available."},
+                    {"label": "Funds", "value": len(enriched_mf_rows), "note": "Tracked mutual fund positions."},
+                    {
+                        "label": "Top fund",
+                        "value": best_fund["fund_name"] if best_fund else "No data",
+                        "note": (
+                            f"Rs. {(as_float(best_fund['current_value']) - _mutual_fund_invested(best_fund, as_float)):,.2f} gain"
+                            if best_fund
+                            else "No fund records available."
+                        ),
+                    },
                     {"label": "SIP load", "value": f"Rs. {total_sip:,.2f}", "note": "Recurring monthly contribution."},
                 ],
             ),
