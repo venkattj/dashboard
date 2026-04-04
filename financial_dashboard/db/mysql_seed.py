@@ -185,6 +185,20 @@ def is_number(value: Any) -> bool:
         return False
 
 
+def normalize_header_label(value: Any) -> str:
+    text = str(value or "").lower()
+    return "".join(ch for ch in text if ch.isalnum())
+
+
+def find_last_matching_column(headers: list[Any], candidates: set[str]) -> int | None:
+    normalized_headers = [normalize_header_label(header) for header in headers]
+    normalized_candidates = {normalize_header_label(candidate) for candidate in candidates}
+    for idx in range(len(headers) - 1, -1, -1):
+        if normalized_headers[idx] in normalized_candidates:
+            return idx
+    return None
+
+
 def as_float(value: Any, default: float = 0.0) -> float:
     try:
         return float(value)
@@ -436,17 +450,40 @@ def parse_workbook_rows(path: Path) -> dict[str, list[dict[str, Any]]]:
                 {"borrower": row[1], "amount": as_float(row[2]), "interest_rate": as_float(row[3])}
             )
 
-    for row in sheets.get("Earnings", [])[1:]:
-        if len(row) >= 5 and is_number(row[0]):
-            income_type = str(row[1]).strip()
-            if not income_type:
+    earnings_rows = sheets.get("Earnings", [])
+    if earnings_rows:
+        headers = earnings_rows[0]
+        income_type_index = find_last_matching_column(headers, {"income type", "type"})
+        amount_index = find_last_matching_column(headers, {"amount"})
+        person_index = find_last_matching_column(headers, {"person"})
+        source_index = find_last_matching_column(headers, {"source", "from"})
+
+        if amount_index is None and len(headers) > 2:
+            amount_index = 2
+        if income_type_index is None and len(headers) > 1:
+            income_type_index = 1
+        if person_index is None and len(headers) > 3:
+            person_index = 3
+        if source_index is None and len(headers) > 4:
+            source_index = 4
+
+        for row in earnings_rows[1:]:
+            income_type = (
+                str(row[income_type_index]).strip()
+                if income_type_index is not None and income_type_index < len(row)
+                else ""
+            )
+            amount_cell = (
+                row[amount_index] if amount_index is not None and amount_index < len(row) else ""
+            )
+            if not income_type or not is_number(amount_cell):
                 continue
             dataset["earnings"].append(
                 {
                     "income_type": income_type,
-                    "amount": as_float(row[2]),
-                    "person": row[3],
-                    "source": row[4],
+                    "amount": as_float(amount_cell),
+                    "person": row[person_index] if person_index is not None and person_index < len(row) else "",
+                    "source": row[source_index] if source_index is not None and source_index < len(row) else "",
                 }
             )
 
