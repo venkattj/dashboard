@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import os
 import re
 import sqlite3
 import sys
@@ -15,6 +16,8 @@ if str(PROJECT_ROOT) not in sys.path:
 
 
 WORKBOOK_PATH = PROJECT_ROOT / "Income.xlsx"
+DB_PATH = Path(os.getenv("SQLITE_PATH", PROJECT_ROOT / "data" / "dashboard.db"))
+DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 NS = {
     "a": "http://schemas.openxmlformats.org/spreadsheetml/2006/main",
     "r": "http://schemas.openxmlformats.org/officeDocument/2006/relationships",
@@ -558,7 +561,7 @@ SQLITE_CONNECTION: sqlite3.Connection | None = None
 def _ensure_connection() -> sqlite3.Connection:
     global SQLITE_CONNECTION
     if SQLITE_CONNECTION is None:
-        SQLITE_CONNECTION = sqlite3.connect(":memory:", check_same_thread=False)
+        SQLITE_CONNECTION = sqlite3.connect(DB_PATH, check_same_thread=False)
         SQLITE_CONNECTION.row_factory = sqlite3.Row
     return SQLITE_CONNECTION
 
