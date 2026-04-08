@@ -62,7 +62,28 @@
     th, td { padding: 14px 16px; border-bottom: 1px solid var(--line); vertical-align: middle; }
     th { text-align: left; font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); background: rgba(255, 250, 242, 0.8); }
     tr:last-child td { border-bottom: 0; }
-    .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    .actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    .reload-form {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .reload-form .file-label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+    .reload-form input[type="file"] {
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.9);
+      font: inherit;
+      padding: 6px 10px;
+      cursor: pointer;
+    }
     form.inline { display: inline; }
     .flash-list { display: grid; gap: 10px; margin-bottom: 18px; }
     .flash { padding: 14px 16px; border-radius: 16px; border: 1px solid var(--line); background: var(--panel-strong); }
@@ -109,15 +130,15 @@
   <div class="shell">
     <aside class="sidebar">
       <div class="brand">
-        <h1>Wealth Atlas</h1>
-        <p>Your workbook-driven personal finance dashboard with MySQL-backed CRUD and richer connected insights.</p>
+        <h1>Financial Dashboard</h1>
+        <p>Workbook-driven financial cockpit with MySQL CRUD so every Excel refresh renders the same dashboard view.</p>
       </div>
       <div class="nav-section">
-        <h2>Overview</h2>
+        <h2>Dashboard Overview</h2>
         <a class="nav-link {% if request.endpoint == 'dashboard' %}active{% endif %}" href="{{ url_for('dashboard') }}">Dashboard</a>
       </div>
       <div class="nav-section">
-        <h2>Manage Data</h2>
+        <h2>Data Sections</h2>
         {% set active_entity = nav_key if nav_key is defined else (request.view_args.get('entity_key') if request.view_args else None) %}
         {% for key, item in entities.items() %}
           {% if key not in ['fixed_deposits', 'mutual_funds', 'utility_bills', 'earnings', 'variable_chits', 'variable_chit_payments'] %}

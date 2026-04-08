@@ -1,0 +1,353 @@
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Expanded Financial Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+      body {
+        font-family: 'Segoe UI', system-ui, sans-serif;
+        margin: 0;
+        min-height: 100vh;
+        background: #030712;
+        color: #e2e8f0;
+      }
+      main {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 32px 24px 48px;
+      }
+      h1 {
+        margin-bottom: 4px;
+      }
+      h2 {
+        margin-top: 0;
+      }
+      .summary {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 12px;
+        margin-bottom: 28px;
+      }
+      .card {
+        background: linear-gradient(145deg, #0c1223, #11182f);
+        border-radius: 18px;
+        padding: 18px;
+        border: 1px solid rgba(148, 163, 184, 0.25);
+        min-height: 100px;
+      }
+      .label {
+        font-size: 0.8rem;
+        color: #94a3b8;
+        margin-bottom: 6px;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+      }
+      .value {
+        font-size: 1.8rem;
+        font-weight: 600;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        gap: 18px;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.95rem;
+      }
+      th {
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: #94a3b8;
+        padding: 10px 6px;
+      }
+      td {
+        padding: 6px 6px;
+        border-top: 1px solid rgba(148, 163, 184, 0.25);
+      }
+      .pill {
+        display: inline-flex;
+        padding: 6px 12px;
+        border-radius: 999px;
+        background: rgba(59, 130, 246, 0.2);
+        color: #bfdbfe;
+        margin: 4px 6px 4px 0;
+        font-size: 0.85rem;
+      }
+      .charts {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 20px;
+        margin: 20px 0 32px;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Expanded Financial Dashboard</h1>
+      <p>Generated from <code>Income.xlsx</code>. Refresh every time the workbook changes.</p>
+
+      <section class="summary">
+        <article class="card">
+          <div class="label">Bank Balances</div>
+          <div class="value">₹358,158</div>
+        </article>
+        <article class="card">
+          <div class="label">Fixed Deposits</div>
+          <div class="value">₹9,803,553</div>
+        </article>
+        <article class="card">
+          <div class="label">Stocks</div>
+          <div class="value">₹1,298,495</div>
+        </article>
+        <article class="card">
+          <div class="label">Mutual Funds</div>
+          <div class="value">₹1,692,931</div>
+        </article>
+        <article class="card">
+          <div class="label">Chits</div>
+          <div class="value">₹1,533,350</div>
+        </article>
+        <article class="card">
+          <div class="label">Loan Out / Liability</div>
+          <div class="value">₹3,680,815 / ₹591,717</div>
+        </article>
+        <article class="card">
+          <div class="label">Computed Net Worth</div>
+          <div class="value">₹14,094,769</div>
+        </article>
+      </section>
+
+      <section class="charts">
+        <article class="card">
+          <h2>Asset Composition</h2>
+          <canvas id="assetChart"></canvas>
+        </article>
+        <article class="card">
+          <h2>Spending vs Earnings</h2>
+          <canvas id="spendingChart"></canvas>
+        </article>
+      </section>
+
+      <section class="card">
+        <h2>Earnings Breakdown</h2>
+        <div>
+          
+        </div>
+      </section>
+
+      <section>
+        <h2>Banks</h2>
+        <article class="card">
+          <table>
+            <thead>
+              <tr><th>Bank</th><th>Purpose</th><th>Balance</th><th>User ID</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>HDFC</td><td>SALARY</td><td>₹235,528</td><td>₹1</td></tr>
+<tr><td>SBI</td><td>SALARY</td><td>₹80,672</td><td>₹2</td></tr>
+<tr><td>UNION</td><td>MUTAL FUNDS</td><td>₹27,737</td><td>₹1</td></tr>
+<tr><td>INDUSIND</td><td>Transactions</td><td>₹9,652</td><td>₹2</td></tr>
+<tr><td>UNION</td><td>Pension</td><td>₹2,908</td><td>₹2</td></tr>
+<tr><td>INDUSIND</td><td>Transactions</td><td>₹1,661</td><td>₹1</td></tr>
+            </tbody>
+          </table>
+        </article>
+      </section>
+
+      <section>
+        <h2>Fixed Deposits</h2>
+        <article class="card">
+          <table>
+            <thead>
+              <tr><th>Account</th><th>Invested</th><th>Current</th><th>Days to Mature</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>₹1</td><td>₹100,000</td><td>₹111,997</td><td>₹4</td></tr>
+<tr><td>₹6</td><td>₹100,000</td><td>₹110,376</td><td>₹41</td></tr>
+<tr><td>₹6</td><td>₹100,000</td><td>₹110,354</td><td>₹42</td></tr>
+<tr><td>₹3</td><td>₹78,248</td><td>₹83,299</td><td>₹60</td></tr>
+<tr><td>₹1</td><td>₹100,000</td><td>₹109,336</td><td>₹76</td></tr>
+<tr><td>₹3</td><td>₹100,000</td><td>₹105,504</td><td>₹106</td></tr>
+            </tbody>
+          </table>
+        </article>
+      </section>
+
+      <section class="grid" style="margin-top: 24px;">
+        <article class="card">
+          <h2>Stocks</h2>
+          <table>
+            <thead>
+              <tr><th>Symbol</th><th>Exchange</th><th>Invested</th><th>Current</th><th>Source</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>-</td><td>-</td><td>₹605,317</td><td>₹649,247</td><td>-</td></tr>
+<tr><td>JPM</td><td>ASE</td><td>₹330,000</td><td>₹368,619</td><td>jpmc</td></tr>
+<tr><td>IDFCFIRSTB</td><td>BSE</td><td>₹20,274</td><td>₹17,475</td><td>zerodha</td></tr>
+<tr><td>LLOYDSME</td><td>BSE</td><td>₹14,409</td><td>₹16,654</td><td>zerodha</td></tr>
+<tr><td>PIRAMALFIN</td><td>BSE</td><td>₹8,994</td><td>₹15,889</td><td>zerodha</td></tr>
+<tr><td>GROWW</td><td>NSE</td><td>₹16,398</td><td>₹15,658</td><td>zerodha</td></tr>
+            </tbody>
+          </table>
+        </article>
+        <article class="card">
+          <h2>Mutual Funds</h2>
+          <table>
+            <thead>
+              <tr><th>ID</th><th>Invested</th><th>Current</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>-</td><td>₹835,106</td><td>₹846,465</td></tr>
+<tr><td>₹10</td><td>₹192,845</td><td>₹185,705</td></tr>
+<tr><td>₹4</td><td>₹92,995</td><td>₹96,298</td></tr>
+<tr><td>₹2</td><td>₹91,995</td><td>₹88,749</td></tr>
+<tr><td>₹5</td><td>₹87,051</td><td>₹84,548</td></tr>
+<tr><td>₹3</td><td>₹84,995</td><td>₹82,904</td></tr>
+            </tbody>
+          </table>
+        </article>
+      </section>
+
+      <section class="grid" style="margin-top: 24px;">
+        <article class="card">
+          <h2>Standard Chits</h2>
+          <table>
+            <thead>
+              <tr><th>Org</th><th>Current Value</th><th>Notes</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Srinivas Mama</td><td>₹144,000</td><td>Apr-26</td></tr>
+<tr><td>Venkatesh Babai</td><td>₹546,875</td><td>Apr-26</td></tr>
+<tr><td>-</td><td>₹690,875</td><td>-</td></tr>
+<tr><td>-</td><td>-</td><td>-</td></tr>
+            </tbody>
+          </table>
+        </article>
+        <article class="card">
+          <h2>Variable Chits</h2>
+          <table>
+            <thead>
+              <tr><th>Name</th><th>Net Value</th><th>EMI Paid</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Ramesh</td><td>₹151,600</td><td>₹5</td></tr>
+<tr><td>NaT</td><td>NaT</td><td>NaT</td></tr>
+<tr><td>NaT</td><td>NaT</td><td>NaT</td></tr>
+<tr><td>emi no</td><td>-</td><td>-</td></tr>
+<tr><td>₹1</td><td>2023-10-08 00:00:00</td><td>-</td></tr>
+<tr><td>₹2</td><td>2023-11-08 00:00:00</td><td>-</td></tr>
+            </tbody>
+          </table>
+        </article>
+      </section>
+
+      <section class="grid" style="margin-top: 28px;">
+        <article class="card">
+          <h2>Spendings</h2>
+          <table>
+            <thead>
+              <tr><th>Type</th><th>Amount</th><th>Person</th><th>Recipient</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Chit</td><td>₹40,000</td><td>Teja</td><td>Srinivas Mama</td></tr>
+<tr><td>SIP</td><td>₹35,000</td><td>Teja</td><td>Stocks</td></tr>
+<tr><td>EMI</td><td>₹30,446</td><td>Teja</td><td>LIC</td></tr>
+<tr><td>Chit</td><td>₹28,000</td><td>Teja</td><td>Ramesh Uncle</td></tr>
+<tr><td>SIP</td><td>₹27,000</td><td>Teja</td><td>Muatal Funds</td></tr>
+<tr><td>Chit</td><td>₹13,000</td><td>Rukmini</td><td>Venkatesh Babai</td></tr>
+            </tbody>
+          </table>
+        </article>
+        <article class="card">
+          <h2>Utilities</h2>
+          <table>
+            <thead>
+              <tr><th>Type</th><th>Amount</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Milk</td><td>₹1,300</td></tr>
+<tr><td>Grocery</td><td>₹5,000</td></tr>
+<tr><td>Fuel</td><td>₹1,000</td></tr>
+<tr><td>Medicine</td><td>₹750</td></tr>
+<tr><td>Food</td><td>₹2,000</td></tr>
+<tr><td>Gas</td><td>₹855</td></tr>
+            </tbody>
+          </table>
+        </article>
+      </section>
+
+      <section style="margin-top: 28px;">
+        <article class="card">
+          <h2>Overall</h2>
+          <table>
+            <thead>
+              <tr><th>Label</th><th>Amount</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Fixed Deposit</td><td>₹4,901,776</td></tr>
+<tr><td>Bank</td><td>₹358,158</td></tr>
+<tr><td>Mutal_fund</td><td>₹847,649</td></tr>
+<tr><td>Stocks</td><td>₹649,247</td></tr>
+<tr><td>Capital</td><td>₹3,018,376</td></tr>
+<tr><td>Chits</td><td>₹842,475</td></tr>
+            </tbody>
+          </table>
+        </article>
+      </section>
+    </main>
+    <script>
+      const assetChart = new Chart(document.getElementById("assetChart"), {
+        type: "doughnut",
+        data: {
+          labels: ["Banks", "Fixed Deposits", "Stocks", "Mutual Funds", "Chits"],
+          datasets: [{
+            data: [358157.92000000004, 9803552.575844895, 1298494.6574960002, 1692930.8050866001, 1533350.0],
+            backgroundColor: ["#38bdf8", "#22d3ee", "#a78bfa", "#f472b6", "#34d399"],
+          }],
+        },
+        options: {
+          plugins: {
+            tooltip: {
+              callbacks: {
+                label: (context) => {
+                  const value = Number(context.parsed).toLocaleString();
+                  return `${context.label}: ₹${value}`;
+                },
+              },
+            },
+          },
+        },
+      });
+
+      const spendingChart = new Chart(document.getElementById("spendingChart"), {
+        type: "bar",
+        data: {
+          labels: ["Spendings", "Utility Bills"],
+          datasets: [{
+            label: "Flow",
+            data: [173446.0, 13855.0],
+            backgroundColor: "#38bdf8",
+          }],
+        },
+        options: {
+          scales: {
+            y: {
+              ticks: {
+                callback: (value) => `₹${value.toLocaleString()}`,
+              },
+            },
+          },
+        },
+      });
+    </script>
+  </body>
+</html>

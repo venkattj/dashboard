@@ -5,27 +5,33 @@
 {% block content %}
   <section class="hero">
     <div class="eyebrow">Financial cockpit</div>
-    <h2>See where the money sits, where it moves, and what matures next.</h2>
-    <p>This dashboard is seeded from your Excel workbook into MySQL, so we can reload from source any time while still supporting fast CRUD workflows in the app.</p>
+    <h2>Track where every rupee sits, how it moves, and what matures next in the Financial Dashboard.</h2>
+    <p>This dashboard seeds <code>Income.xlsx</code> into MySQL so you can refresh the workbook, explore fast CRUD workflows, and still keep the live snapshot the app presents.</p>
     <div class="topbar">
-      <div class="muted">Last generated on {{ metrics.generated_on }}</div>
+      <div class="muted">Dashboard synced on {{ metrics.generated_on }}</div>
       <div class="actions">
         <a class="btn secondary" href="{{ url_for('download_template') }}">Download Excel Template</a>
-        <form method="post" action="{{ url_for('reload_data') }}">
+        <form
+          method="post"
+          action="{{ url_for('reload_data') }}"
+          enctype="multipart/form-data"
+          class="reload-form"
+        >
+          <label class="file-label" for="reload-workbook">
+            <span class="muted">Upload Income.xlsx</span>
+            <input id="reload-workbook" type="file" name="workbook" accept=".xlsx,.xls">
+          </label>
           <button type="submit">Reload From Workbook</button>
-        </form>
-        <form method="post" action="{{ url_for('update_workbook') }}">
-          <button type="submit" class="btn secondary">Update Excel Workbook</button>
         </form>
       </div>
     </div>
   </section>
 
   <section class="grid metrics">
-    <article class="card"><div class="eyebrow">Net Worth</div><p class="metric">{{ format_currency(metrics.net_worth) }}</p><div class="footer-note">Assets minus outstanding obligations.</div></article>
-    <article class="card"><div class="eyebrow">Asset Base</div><p class="metric">{{ format_currency(metrics.asset_total) }}</p><div class="footer-note">Cash, investments, loans given, chits, and long-term assets.</div></article>
-    <article class="card"><div class="eyebrow">Monthly Surplus</div><p class="metric">{{ format_currency(metrics.monthly_surplus) }}</p><div class="footer-note">Monthly income {{ format_currency(metrics.monthly_income) }} less outflow {{ format_currency(metrics.monthly_spend) }}.</div></article>
-    <article class="card"><div class="eyebrow">Loan Obligations</div><p class="metric">{{ format_currency(metrics.loan_obligations) }}</p><div class="footer-note">Current negative balances captured in the loan ledger.</div></article>
+    <article class="card"><div class="eyebrow">Net Worth</div><p class="metric">{{ format_currency(metrics.net_worth) }}</p><div class="footer-note">Dashboard result of assets minus outstanding obligations.</div></article>
+    <article class="card"><div class="eyebrow">Asset Base</div><p class="metric">{{ format_currency(metrics.asset_total) }}</p><div class="footer-note">Cash, investments, loans given, chits, and long-term assets tracked in the dashboard.</div></article>
+    <article class="card"><div class="eyebrow">Monthly Surplus</div><p class="metric">{{ format_currency(metrics.monthly_surplus) }}</p><div class="footer-note">Dashboard income {{ format_currency(metrics.monthly_income) }} minus outflow {{ format_currency(metrics.monthly_spend) }} for the current month.</div></article>
+    <article class="card"><div class="eyebrow">Loan Obligations</div><p class="metric">{{ format_currency(metrics.loan_obligations) }}</p><div class="footer-note">Negative balances and scheduled paydowns captured in the dashboard ledger.</div></article>
   </section>
 
   <section class="split">
@@ -44,8 +50,8 @@
     </article>
     <article class="card">
       <div class="eyebrow">Quick Actions</div>
-      <h3>Manage the live in-memory dataset</h3>
-      <p class="muted">Open any section below to add, edit, or remove records without touching the original workbook until you choose to reload.</p>
+      <h3>Dashboard Dataset Tools</h3>
+      <p class="muted">Open any section below to adjust workbook-backed records before you sync them with the dashboard.</p>
       <div class="actions">
         <a class="btn secondary" href="{{ url_for('bank_accounts_page') }}">Banks</a>
         <a class="btn secondary" href="{{ url_for('entity_list', entity_key='fixed_deposits') }}">Fixed Deposits</a>

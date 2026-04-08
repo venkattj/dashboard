@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: financial-dashboard
+    env: python
+    plan: starter
+    region: oregon
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app --bind 0.0.0.0:
+    healthCheckPath: /
+    envVars:
+      - key: FLASK_ENV
+        value: production
+

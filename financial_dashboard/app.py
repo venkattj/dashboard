@@ -4,6 +4,7 @@ import hashlib
 import json
 import threading
 import zipfile
+import os
 from datetime import datetime, timedelta
 from io import BytesIO
 from pathlib import Path
@@ -56,7 +57,8 @@ except ImportError:
 app = Flask(__name__)
 app.secret_key = "financial-dashboard-dev"
 
-WORKBOOK_PATH = Path(r"C:\Users\venka\Desktop\Income\income\Income.xlsx")
+APP_ROOT = Path(__file__).resolve().parent
+WORKBOOK_PATH = Path(os.getenv("WORKBOOK_PATH", APP_ROOT / "Income.xlsx"))
 LOGIN_ENDPOINT = "login"
 SIGNUP_ENDPOINT = "signup"
 ZERODHA_CALLBACK_ENDPOINT = "zerodha_callback"
@@ -228,10 +230,11 @@ DB_LOCK = threading.Lock()
 
 
 class Config:
-    MYSQL_HOST = "localhost"
-    MYSQL_USER = "root"
-    MYSQL_PASSWORD = "teja@4795"
-    MYSQL_DB = "teja"
+    MYSQL_HOST = os.getenv("MYSQL_HOST", "localhost")
+    MYSQL_USER = os.getenv("MYSQL_USER", "root")
+    MYSQL_PASSWORD = os.getenv("MYSQL_PASSWORD", "teja@4795")
+    MYSQL_DB = os.getenv("MYSQL_DB", "teja")
+    MYSQL_PORT = int(os.getenv("MYSQL_PORT", "3306"))
 
 
 def as_float(value: Any, default: float = 0.0) -> float:
@@ -321,6 +324,7 @@ def get_connection():
         password=Config.MYSQL_PASSWORD,
         database=Config.MYSQL_DB,
         charset="utf8mb4",
+        port=Config.MYSQL_PORT,
         autocommit=True,
         cursorclass=pymysql.cursors.DictCursor,
     )
@@ -1553,10 +1557,11 @@ def logout():
 @app.get("/download-template")
 def download_template():
     workbook = build_excel_template()
+    date_tag = datetime.utcnow().strftime("%Y-%m-%d")
     return send_file(
         workbook,
         as_attachment=True,
-        download_name="financial_dashboard_template.xlsx",
+        download_name=f"financial_dashboard_template_{date_tag}.xlsx",
         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )
 
@@ -1717,9 +1722,23 @@ def dashboard() -> str:
 
 @app.post("/reload")
 def reload_data():
-    if not WORKBOOK_PATH.exists():
+    workbook_file = request.files.get("workbook")
+    if workbook_file and workbook_file.filename:
+        suffix = Path(workbook_file.filename).suffix.lower()
+        if suffix not in {".xlsx", ".xls"}:
+            flash("Please upload a .xlsx or .xls file.", "error")
+            return redirect(url_for("dashboard"))
+
+        WORKBOOK_PATH.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            workbook_file.save(WORKBOOK_PATH)
+        except Exception:
+            flash("Unable to save the uploaded workbook.", "error")
+            return redirect(url_for("dashboard"))
+    elif not WORKBOOK_PATH.exists():
         flash(f"Workbook not found at {WORKBOOK_PATH}", "error")
         return redirect(url_for("dashboard"))
+
     reset_database()
     flash("Dashboard data was reloaded from the Excel workbook.", "success")
     return redirect(url_for("dashboard"))

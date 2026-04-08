@@ -170,20 +170,20 @@
 <body>
   <section class="login-shell">
     <div class="story">
-      <div class="eyebrow">Private Access</div>
-      <h1>Wealth <span class="accent">Atlas</span></h1>
-      <p>Sign in to reach the dashboard, manage workbook-backed records, and keep the financial overview limited to approved access only.</p>
+      <div class="eyebrow">Financial Control Center</div>
+      <h1>Financial <span class="accent">Dashboard</span></h1>
+      <p>Sign in to view the consolidated view of accounts, investments, commitments, and spending that the dashboard summarizes for you.</p>
       <div class="highlights">
-        <div class="highlight">Track cash, capital, and recurring commitments in one place.</div>
-        <div class="highlight">Reload workbook data without exposing the internal sections publicly.</div>
-        <div class="highlight">Use a simple protected entry point that fits the existing visual language.</div>
+        <div class="highlight">Track cash, investments, and liabilities from every linked workbook section.</div>
+        <div class="highlight">Refresh with Income.xlsx and instantly capture updated balances, chits, and spendings.</div>
+        <div class="highlight">Keep the HTML dashboard snapshot private while keeping a UX consistent with the rest of the app.</div>
       </div>
     </div>
     <div class="form-panel">
       <div class="card">
-        <div class="eyebrow">Welcome Back</div>
-        <h2>Login</h2>
-        <p>Enter your credentials to continue to the dashboard.</p>
+        <div class="eyebrow">Secure Dashboard Entry</div>
+        <h2>Member Access</h2>
+        <p>Authenticate to reach the financial dashboard that aggregates every workbook insight.</p>
         {% with messages = get_flashed_messages(with_categories=true) %}
           {% if messages %}
             <div class="flash-list">
@@ -206,7 +206,7 @@
           <button type="submit">Access Dashboard</button>
         </form>
         <div class="switch-link">Need an account? <a href="{{ url_for('signup') }}">Create one here</a>.</div>
-        <div class="footnote">Authentication now uses the `users` table, so new accounts are stored in MySQL and available on the next app start too.</div>
+        <div class="footnote">New users are persisted in the `users` table so authenticated access remains consistent between restarts.</div>
       </div>
     </div>
   </section>
