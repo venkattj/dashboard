@@ -1248,7 +1248,7 @@ def build_dashboard_metrics() -> dict[str, Any]:
         """
         SELECT
             fd.*,
-            CONCAT(COALESCE(u.full_name, 'Unknown'), ' / ', COALESCE(b.name, 'Unknown')) AS bank,
+            (COALESCE(u.full_name, 'Unknown') || ' / ' || COALESCE(b.name, 'Unknown')) AS bank,
             ba.purpose AS account_purpose
         FROM fixed_deposits fd
         LEFT JOIN bank_accounts ba ON ba.id = fd.account_id

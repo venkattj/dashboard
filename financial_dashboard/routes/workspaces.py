@@ -132,8 +132,8 @@ def build_banking_workspace(
             u.full_name AS account_holder,
             b.name AS bank_name,
             ba.purpose AS account_purpose,
-            CONCAT(COALESCE(u.full_name, 'Unknown'), ' / ', COALESCE(b.name, 'Unknown')) AS account_label,
-            CONCAT(COALESCE(u.full_name, 'Unknown'), ' / ', COALESCE(b.name, 'Unknown')) AS bank
+            (COALESCE(u.full_name, 'Unknown') || ' / ' || COALESCE(b.name, 'Unknown')) AS account_label,
+            (COALESCE(u.full_name, 'Unknown') || ' / ' || COALESCE(b.name, 'Unknown')) AS bank
         FROM fixed_deposits fd
         LEFT JOIN bank_accounts ba ON ba.id = fd.account_id
         LEFT JOIN users u ON u.id = ba.user_id
