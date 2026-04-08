@@ -48,6 +48,22 @@ def register_mutual_funds_routes(
     execute: Callable[..., None],
     as_float: Callable[[Any], float],
 ) -> None:
+    def _parse_nav_synced(value: Any) -> datetime | None:
+        if isinstance(value, datetime):
+            return value
+        if value is None:
+            return None
+        candidate = str(value).strip()
+        if not candidate:
+            return None
+        try:
+            return datetime.fromisoformat(candidate)
+        except ValueError:
+            try:
+                return datetime.strptime(candidate, "%Y-%m-%d %H:%M:%S")
+            except ValueError:
+                return None
+
     @app.get("/entity/mutual_funds", endpoint="mutual_funds_page")
     def mutual_funds_page() -> str:
         mf_rows = fetch_all("SELECT * FROM mutual_funds ORDER BY latest_nav * units DESC, id DESC")
@@ -57,7 +73,11 @@ def register_mutual_funds_routes(
             as_float=as_float,
             mutual_fund_rows=mf_rows,
         )
-        last_sync_candidates = [row["nav_synced_at"] for row in mf_rows if row.get("nav_synced_at")]
+        last_sync_candidates = [
+            parsed
+            for row in mf_rows
+            if (parsed := _parse_nav_synced(row.get("nav_synced_at")))
+        ]
         last_sync_at = max(last_sync_candidates) if last_sync_candidates else None
         integration_panel = {
             "mode": "mutual_funds",
