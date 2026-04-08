@@ -1,15 +1,14 @@
 # Financial Dashboard Web App
 
-This Flask app reads the Income.xlsx workbook, seeds a MySQL database, and renders the dashboard/CRUD UI.
+This Flask app reads the checked-in `Income.xlsx`, seeds an in-memory SQLite store, and renders the dashboard/CRUD UI. No external database is required for the app to run; every deploy starts with a fresh in-memory schema that is immediately populated from the workbook file.
 
 ## Local setup
-1. Install dependencies: pip install -r requirements.txt
-2. Point a local MySQL instance at the credentials defined via environment variables (MYSQL_HOST, MYSQL_USER, MYSQL_PASSWORD, MYSQL_DB, MYSQL_PORT).
-3. Run python app.py and open http://localhost:5000.
+1. Install dependencies: `pip install -r requirements.txt`
+2. Adjust `WORKBOOK_PATH` via environment variable if you want to point at another workbook (the default is the repository's `Income.xlsx`).
+3. `python app.py` will seed the in-memory store and start the Flask server on `http://localhost:5000`.
 
 ## Deploying on Render
-1. Commit ender.yaml so Render picks up the Python web service definition (it installs equirements.txt and runs gunicorn app:app --bind 0.0.0.0:).
-2. In the Render dashboard, create a web service from this repo, choose the python environment, and use the generated ender.yaml. Render will install dependencies and use gunicorn to serve the app.
-3. Configure the service-level environment variables (MYSQL_HOST, MYSQL_USER, MYSQL_PASSWORD, MYSQL_DB, MYSQL_PORT) to point at your Render managed database, and optionally override WORKBOOK_PATH if you store the workbook somewhere else.
-4. The workbook in source control (Income.xlsx) will seed the database the first time the service starts.
-
+1. Commit `render.yaml` so Render uses the provided web service definition (`pip install -r requirements.txt` + `gunicorn app:app --bind 0.0.0.0:$PORT`).
+2. Choose the `financial_dashboard` root directory in Render so it runs commands from the right folder.
+3. If you want to seed from a workbook other than the checked-in `Income.xlsx`, provide a `WORKBOOK_PATH` environment variable pointing to that file within the Render workspace.
+4. Every deploy rebuilds the same data because the in-memory database is seeded from the workbook on startup; to refresh, use the "Reload From Workbook" file picker on the dashboard.

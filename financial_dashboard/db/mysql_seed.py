@@ -2,27 +2,19 @@ from __future__ import annotations
 
 from pathlib import Path
 import re
+import sqlite3
 import sys
 import zipfile
 from typing import Any
 from datetime import datetime, timedelta
 import xml.etree.ElementTree as ET
 
-import pymysql
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 
-class Config:
-    MYSQL_HOST = "localhost"
-    MYSQL_USER = "root"
-    MYSQL_PASSWORD = "teja@4795"
-    MYSQL_DB = "teja"
-
-
-WORKBOOK_PATH = Path(r"C:\Users\venka\Desktop\Income\income\Income.xlsx")
+WORKBOOK_PATH = PROJECT_ROOT / "Income.xlsx"
 NS = {
     "a": "http://schemas.openxmlformats.org/spreadsheetml/2006/main",
     "r": "http://schemas.openxmlformats.org/officeDocument/2006/relationships",
@@ -49,130 +41,130 @@ ENTITY_ORDER = [
 
 TABLE_DEFINITIONS = {
     "users": [
-        "`id` INT PRIMARY KEY AUTO_INCREMENT",
-        "`full_name` VARCHAR(255) NOT NULL UNIQUE",
-        "`username` VARCHAR(255) NULL UNIQUE",
-        "`email` VARCHAR(255) NULL UNIQUE",
-        "`password_hash` VARCHAR(255) NULL",
-        "`zerodha_api_key` VARCHAR(255) NULL",
-        "`zerodha_api_secret` VARCHAR(255) NULL",
-        "`zerodha_access_token` VARCHAR(255) NULL",
-        "`zerodha_public_token` VARCHAR(255) NULL",
-        "`zerodha_user_id` VARCHAR(255) NULL",
-        "`zerodha_user_name` VARCHAR(255) NULL",
-        "`zerodha_token_expires_at` DATETIME NULL",
-        "`zerodha_connected_at` DATETIME NULL",
-        "`zerodha_last_sync_at` DATETIME NULL",
-        "`created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP",
+        "id INTEGER PRIMARY KEY AUTOINCREMENT",
+        "full_name TEXT NOT NULL UNIQUE",
+        "username TEXT UNIQUE",
+        "email TEXT UNIQUE",
+        "password_hash TEXT",
+        "zerodha_api_key TEXT",
+        "zerodha_api_secret TEXT",
+        "zerodha_access_token TEXT",
+        "zerodha_public_token TEXT",
+        "zerodha_user_id TEXT",
+        "zerodha_user_name TEXT",
+        "zerodha_token_expires_at TEXT",
+        "zerodha_connected_at TEXT",
+        "zerodha_last_sync_at TEXT",
+        "created_at TEXT DEFAULT CURRENT_TIMESTAMP",
     ],
     "banks": [
-        "`id` INT PRIMARY KEY AUTO_INCREMENT",
-        "`name` VARCHAR(255) NOT NULL UNIQUE",
-        "`created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP",
+        "id INTEGER PRIMARY KEY AUTOINCREMENT",
+        "name TEXT NOT NULL UNIQUE",
+        "created_at TEXT DEFAULT CURRENT_TIMESTAMP",
     ],
     "bank_accounts": [
-        "`id` INT PRIMARY KEY AUTO_INCREMENT",
-        "`user_id` INT NULL",
-        "`bank_id` INT NULL",
-        "`balance` DOUBLE NOT NULL DEFAULT 0",
-        "`purpose` VARCHAR(255) NULL",
+        "id INTEGER PRIMARY KEY AUTOINCREMENT",
+        "user_id INTEGER",
+        "bank_id INTEGER",
+        "balance REAL NOT NULL DEFAULT 0",
+        "purpose TEXT",
     ],
     "fixed_deposits": [
-        "`id` INT PRIMARY KEY AUTO_INCREMENT",
-        "`account_id` INT NULL",
-        "`invested` DOUBLE NOT NULL DEFAULT 0",
-        "`interest_rate` DOUBLE NOT NULL DEFAULT 0",
-        "`maturity_date` DATE NULL",
-        "`created_date` DATE NULL",
+        "id INTEGER PRIMARY KEY AUTOINCREMENT",
+        "account_id INTEGER",
+        "invested REAL NOT NULL DEFAULT 0",
+        "interest_rate REAL NOT NULL DEFAULT 0",
+        "maturity_date TEXT",
+        "created_date TEXT",
     ],
     "stocks": [
-        "`id` INT PRIMARY KEY AUTO_INCREMENT",
-        "`symbol` VARCHAR(255) NOT NULL",
-        "`exchange` VARCHAR(32) NULL",
-        "`isin` VARCHAR(32) NULL",
-        "`average_price` DOUBLE NOT NULL DEFAULT 0",
-        "`current_price` DOUBLE NOT NULL DEFAULT 0",
-        "`quantity` DOUBLE NOT NULL DEFAULT 0",
-        "`source` VARCHAR(32) NOT NULL DEFAULT 'manual'",
-        "`last_synced_price_at` DATETIME NULL",
+        "id INTEGER PRIMARY KEY AUTOINCREMENT",
+        "symbol TEXT NOT NULL",
+        "exchange TEXT",
+        "isin TEXT",
+        "average_price REAL NOT NULL DEFAULT 0",
+        "current_price REAL NOT NULL DEFAULT 0",
+        "quantity REAL NOT NULL DEFAULT 0",
+        "source TEXT NOT NULL DEFAULT 'manual'",
+        "last_synced_price_at TEXT",
     ],
     "mutual_funds": [
-        "`id` INT PRIMARY KEY AUTO_INCREMENT",
-        "`fund_name` VARCHAR(255) NOT NULL",
-        "`scheme_code` VARCHAR(64) NULL",
-        "`sip` DOUBLE NOT NULL DEFAULT 0",
-        "`units` DOUBLE NOT NULL DEFAULT 0",
-        "`average_nav` DOUBLE NOT NULL DEFAULT 0",
-        "`latest_nav` DOUBLE NOT NULL DEFAULT 0",
-        "`nav_synced_at` DATETIME NULL",
+        "id INTEGER PRIMARY KEY AUTOINCREMENT",
+        "fund_name TEXT NOT NULL",
+        "scheme_code TEXT",
+        "sip REAL NOT NULL DEFAULT 0",
+        "units REAL NOT NULL DEFAULT 0",
+        "average_nav REAL NOT NULL DEFAULT 0",
+        "latest_nav REAL NOT NULL DEFAULT 0",
+        "nav_synced_at TEXT",
     ],
     "utility_bills": [
-        "`id` INT PRIMARY KEY AUTO_INCREMENT",
-        "`bill_type` VARCHAR(255) NOT NULL",
-        "`amount` DOUBLE NOT NULL DEFAULT 0",
+        "id INTEGER PRIMARY KEY AUTOINCREMENT",
+        "bill_type TEXT NOT NULL",
+        "amount REAL NOT NULL DEFAULT 0",
     ],
     "loans": [
-        "`id` INT PRIMARY KEY AUTO_INCREMENT",
-        "`borrower` VARCHAR(255) NOT NULL",
-        "`amount` DOUBLE NOT NULL DEFAULT 0",
-        "`interest_rate` DOUBLE NOT NULL DEFAULT 0",
+        "id INTEGER PRIMARY KEY AUTOINCREMENT",
+        "borrower TEXT NOT NULL",
+        "amount REAL NOT NULL DEFAULT 0",
+        "interest_rate REAL NOT NULL DEFAULT 0",
     ],
     "earnings": [
-        "`id` INT PRIMARY KEY AUTO_INCREMENT",
-        "`income_type` VARCHAR(255) NOT NULL",
-        "`amount` DOUBLE NOT NULL DEFAULT 0",
-        "`person` VARCHAR(255) NOT NULL",
-        "`source` VARCHAR(255) NULL",
+        "id INTEGER PRIMARY KEY AUTOINCREMENT",
+        "income_type TEXT NOT NULL",
+        "amount REAL NOT NULL DEFAULT 0",
+        "person TEXT NOT NULL",
+        "source TEXT",
     ],
     "spending": [
-        "`id` INT PRIMARY KEY AUTO_INCREMENT",
-        "`spending_type` VARCHAR(255) NOT NULL",
-        "`amount` DOUBLE NOT NULL DEFAULT 0",
-        "`person` VARCHAR(255) NOT NULL",
-        "`recipient` VARCHAR(255) NULL",
+        "id INTEGER PRIMARY KEY AUTOINCREMENT",
+        "spending_type TEXT NOT NULL",
+        "amount REAL NOT NULL DEFAULT 0",
+        "person TEXT NOT NULL",
+        "recipient TEXT",
     ],
     "standard_chits": [
-        "`id` INT PRIMARY KEY AUTO_INCREMENT",
-        "`organization` VARCHAR(255) NOT NULL",
-        "`value` DOUBLE NOT NULL DEFAULT 0",
-        "`duration_months` INT NULL",
-        "`paid_months` INT NULL",
-        "`emi` DOUBLE NOT NULL DEFAULT 0",
-        "`maturity_date` DATE NULL",
-        "`started_date` DATE NULL",
-        "`current_value` DOUBLE NOT NULL DEFAULT 0",
-        "`note` VARCHAR(255) NULL",
+        "id INTEGER PRIMARY KEY AUTOINCREMENT",
+        "organization TEXT NOT NULL",
+        "value REAL NOT NULL DEFAULT 0",
+        "duration_months INTEGER",
+        "paid_months INTEGER",
+        "emi REAL NOT NULL DEFAULT 0",
+        "maturity_date TEXT",
+        "started_date TEXT",
+        "current_value REAL NOT NULL DEFAULT 0",
+        "note TEXT",
     ],
     "variable_chits": [
-        "`id` INT PRIMARY KEY AUTO_INCREMENT",
-        "`name` VARCHAR(255) NOT NULL",
-        "`value` DOUBLE NOT NULL DEFAULT 0",
-        "`months` INT NULL",
-        "`maturity_date` DATE NULL",
-        "`total_paid` DOUBLE NOT NULL DEFAULT 0",
-        "`start_date` DATE NULL",
-        "`net_value` DOUBLE NOT NULL DEFAULT 0",
-        "`emi_paid` INT NULL",
+        "id INTEGER PRIMARY KEY AUTOINCREMENT",
+        "name TEXT NOT NULL",
+        "value REAL NOT NULL DEFAULT 0",
+        "months INTEGER",
+        "maturity_date TEXT",
+        "total_paid REAL NOT NULL DEFAULT 0",
+        "start_date TEXT",
+        "net_value REAL NOT NULL DEFAULT 0",
+        "emi_paid INTEGER",
     ],
     "variable_chit_payments": [
-        "`id` INT PRIMARY KEY AUTO_INCREMENT",
-        "`emi_no` INT NULL",
-        "`amount` DOUBLE NOT NULL DEFAULT 0",
-        "`payment_date` DATE NULL",
-        "`actual_paid` DOUBLE NULL",
-        "`start_date` DATE NULL",
+        "id INTEGER PRIMARY KEY AUTOINCREMENT",
+        "emi_no INTEGER",
+        "amount REAL NOT NULL DEFAULT 0",
+        "payment_date TEXT",
+        "actual_paid REAL",
+        "start_date TEXT",
     ],
     "sneha_payments": [
-        "`id` INT PRIMARY KEY AUTO_INCREMENT",
-        "`payment_date` DATE NULL",
-        "`amount` DOUBLE NOT NULL DEFAULT 0",
-        "`principal_balance` DOUBLE NULL",
+        "id INTEGER PRIMARY KEY AUTOINCREMENT",
+        "payment_date TEXT",
+        "amount REAL NOT NULL DEFAULT 0",
+        "principal_balance REAL",
     ],
     "overall_assets": [
-        "`id` INT PRIMARY KEY AUTO_INCREMENT",
-        "`label` VARCHAR(255) NOT NULL",
-        "`amount` DOUBLE NOT NULL DEFAULT 0",
-        "`note` VARCHAR(255) NULL",
+        "id INTEGER PRIMARY KEY AUTOINCREMENT",
+        "label TEXT NOT NULL",
+        "amount REAL NOT NULL DEFAULT 0",
+        "note TEXT",
     ],
 }
 
@@ -560,15 +552,68 @@ def parse_workbook_rows(path: Path) -> dict[str, list[dict[str, Any]]]:
     return dataset
 
 
-def get_connection(database: str | None = None):
-    return pymysql.connect(
-        host=Config.MYSQL_HOST,
-        user=Config.MYSQL_USER,
-        password=Config.MYSQL_PASSWORD,
-        database=database,
-        charset="utf8mb4",
-        autocommit=True,
-    )
+SQLITE_CONNECTION: sqlite3.Connection | None = None
+
+
+def _ensure_connection() -> sqlite3.Connection:
+    global SQLITE_CONNECTION
+    if SQLITE_CONNECTION is None:
+        SQLITE_CONNECTION = sqlite3.connect(":memory:", check_same_thread=False)
+        SQLITE_CONNECTION.row_factory = sqlite3.Row
+    return SQLITE_CONNECTION
+
+
+class CursorProxy:
+    def __init__(self, cursor: sqlite3.Cursor, connection: sqlite3.Connection):
+        self.cursor = cursor
+        self.connection = connection
+
+    def __enter__(self) -> sqlite3.Cursor:
+        return self.cursor
+
+    def __exit__(self, exc_type, exc, exc_tb):
+        if exc_type is None:
+            self.connection.commit()
+        self.cursor.close()
+
+
+class ConnectionProxy:
+    def __init__(self, connection: sqlite3.Connection):
+        self._connection = connection
+
+    def __enter__(self) -> "ConnectionProxy":
+        return self
+
+    def __exit__(self, exc_type, exc, exc_tb):
+        return False
+
+    def cursor(self) -> CursorProxy:
+        return CursorProxy(self._connection.cursor(), self._connection)
+
+    def execute(self, *args, **kwargs):
+        cursor = self._connection.cursor()
+        try:
+            result = cursor.execute(*args, **kwargs)
+            self._connection.commit()
+            return result
+        finally:
+            cursor.close()
+
+    def executemany(self, *args, **kwargs):
+        cursor = self._connection.cursor()
+        try:
+            result = cursor.executemany(*args, **kwargs)
+            self._connection.commit()
+            return result
+        finally:
+            cursor.close()
+
+    def __getattr__(self, name):
+        return getattr(self._connection, name)
+
+
+def get_connection(database: str | None = None) -> ConnectionProxy:
+    return ConnectionProxy(_ensure_connection())
 
 
 def normalize_value(value: Any) -> Any:
@@ -578,254 +623,41 @@ def normalize_value(value: Any) -> Any:
 
 
 def create_database() -> None:
-    with get_connection() as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                f"CREATE DATABASE IF NOT EXISTS `{Config.MYSQL_DB}` "
-                "CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"
-            )
+    _ensure_connection()
 
 
 def create_tables() -> None:
-    with get_connection(Config.MYSQL_DB) as conn:
+    with get_connection() as conn:
         with conn.cursor() as cur:
             for table_name, columns in TABLE_DEFINITIONS.items():
-                ddl = f"CREATE TABLE IF NOT EXISTS `{table_name}` ({', '.join(columns)}) ENGINE=InnoDB"
+                ddl = f"CREATE TABLE IF NOT EXISTS {table_name} ({', '.join(columns)})"
                 cur.execute(ddl)
-            ensure_user_auth_columns(cur)
-            ensure_bank_account_reference_columns(cur)
-            ensure_fixed_deposit_reference_columns(cur)
-            ensure_stock_sync_columns(cur)
-            ensure_mutual_fund_columns(cur)
-            sync_bank_account_reference_data(cur)
-
-
-def _column_exists(cur, table_name: str, column_name: str) -> bool:
-    cur.execute(
-        """
-        SELECT 1
-        FROM information_schema.COLUMNS
-        WHERE TABLE_SCHEMA = %s AND TABLE_NAME = %s AND COLUMN_NAME = %s
-        """,
-        (Config.MYSQL_DB, table_name, column_name),
-    )
-    return cur.fetchone() is not None
-
-
-def _constraint_exists(cur, table_name: str, constraint_name: str) -> bool:
-    cur.execute(
-        """
-        SELECT 1
-        FROM information_schema.TABLE_CONSTRAINTS
-        WHERE TABLE_SCHEMA = %s AND TABLE_NAME = %s AND CONSTRAINT_NAME = %s
-        """,
-        (Config.MYSQL_DB, table_name, constraint_name),
-    )
-    return cur.fetchone() is not None
-
-
-def _index_exists(cur, table_name: str, index_name: str) -> bool:
-    cur.execute(
-        """
-        SELECT 1
-        FROM information_schema.STATISTICS
-        WHERE TABLE_SCHEMA = %s AND TABLE_NAME = %s AND INDEX_NAME = %s
-        """,
-        (Config.MYSQL_DB, table_name, index_name),
-    )
-    return cur.fetchone() is not None
-
-
-def ensure_user_auth_columns(cur) -> None:
-    if not _column_exists(cur, "users", "username"):
-        cur.execute("ALTER TABLE `users` ADD COLUMN `username` VARCHAR(255) NULL AFTER `full_name`")
-    if not _column_exists(cur, "users", "email"):
-        cur.execute("ALTER TABLE `users` ADD COLUMN `email` VARCHAR(255) NULL AFTER `username`")
-    if not _column_exists(cur, "users", "password_hash"):
-        cur.execute("ALTER TABLE `users` ADD COLUMN `password_hash` VARCHAR(255) NULL AFTER `email`")
-    if not _column_exists(cur, "users", "zerodha_api_key"):
-        cur.execute("ALTER TABLE `users` ADD COLUMN `zerodha_api_key` VARCHAR(255) NULL AFTER `password_hash`")
-    if not _column_exists(cur, "users", "zerodha_api_secret"):
-        cur.execute("ALTER TABLE `users` ADD COLUMN `zerodha_api_secret` VARCHAR(255) NULL AFTER `zerodha_api_key`")
-    if not _column_exists(cur, "users", "zerodha_access_token"):
-        cur.execute("ALTER TABLE `users` ADD COLUMN `zerodha_access_token` VARCHAR(255) NULL AFTER `zerodha_api_secret`")
-    if not _column_exists(cur, "users", "zerodha_public_token"):
-        cur.execute("ALTER TABLE `users` ADD COLUMN `zerodha_public_token` VARCHAR(255) NULL AFTER `zerodha_access_token`")
-    if not _column_exists(cur, "users", "zerodha_user_id"):
-        cur.execute("ALTER TABLE `users` ADD COLUMN `zerodha_user_id` VARCHAR(255) NULL AFTER `zerodha_public_token`")
-    if not _column_exists(cur, "users", "zerodha_user_name"):
-        cur.execute("ALTER TABLE `users` ADD COLUMN `zerodha_user_name` VARCHAR(255) NULL AFTER `zerodha_user_id`")
-    if not _column_exists(cur, "users", "zerodha_token_expires_at"):
-        cur.execute("ALTER TABLE `users` ADD COLUMN `zerodha_token_expires_at` DATETIME NULL AFTER `zerodha_user_name`")
-    if not _column_exists(cur, "users", "zerodha_connected_at"):
-        cur.execute("ALTER TABLE `users` ADD COLUMN `zerodha_connected_at` DATETIME NULL AFTER `zerodha_token_expires_at`")
-    if not _column_exists(cur, "users", "zerodha_last_sync_at"):
-        cur.execute("ALTER TABLE `users` ADD COLUMN `zerodha_last_sync_at` DATETIME NULL AFTER `zerodha_connected_at`")
-
-    if not _index_exists(cur, "users", "username"):
-        cur.execute("ALTER TABLE `users` ADD UNIQUE INDEX `username` (`username`)")
-    if not _index_exists(cur, "users", "email"):
-        cur.execute("ALTER TABLE `users` ADD UNIQUE INDEX `email` (`email`)")
-
-
-def ensure_bank_account_reference_columns(cur) -> None:
-    if not _column_exists(cur, "bank_accounts", "user_id"):
-        cur.execute("ALTER TABLE `bank_accounts` ADD COLUMN `user_id` INT NULL AFTER `id`")
-    if not _column_exists(cur, "bank_accounts", "bank_id"):
-        cur.execute("ALTER TABLE `bank_accounts` ADD COLUMN `bank_id` INT NULL AFTER `user_id`")
-
-    if not _index_exists(cur, "bank_accounts", "idx_bank_accounts_user_id"):
-        cur.execute("ALTER TABLE `bank_accounts` ADD INDEX `idx_bank_accounts_user_id` (`user_id`)")
-    if not _index_exists(cur, "bank_accounts", "idx_bank_accounts_bank_id"):
-        cur.execute("ALTER TABLE `bank_accounts` ADD INDEX `idx_bank_accounts_bank_id` (`bank_id`)")
-
-    if not _constraint_exists(cur, "bank_accounts", "fk_bank_accounts_user"):
-        cur.execute(
-            """
-            ALTER TABLE `bank_accounts`
-            ADD CONSTRAINT `fk_bank_accounts_user`
-            FOREIGN KEY (`user_id`) REFERENCES `users`(`id`)
-            ON UPDATE CASCADE ON DELETE SET NULL
-            """
-        )
-    if not _constraint_exists(cur, "bank_accounts", "fk_bank_accounts_bank"):
-        cur.execute(
-            """
-            ALTER TABLE `bank_accounts`
-            ADD CONSTRAINT `fk_bank_accounts_bank`
-            FOREIGN KEY (`bank_id`) REFERENCES `banks`(`id`)
-            ON UPDATE CASCADE ON DELETE SET NULL
-            """
-        )
-
-    sync_bank_account_reference_data(cur)
-
-    if _column_exists(cur, "bank_accounts", "account_holder"):
-        cur.execute("ALTER TABLE `bank_accounts` DROP COLUMN `account_holder`")
-    if _column_exists(cur, "bank_accounts", "bank_name"):
-        cur.execute("ALTER TABLE `bank_accounts` DROP COLUMN `bank_name`")
-
-
-def ensure_stock_sync_columns(cur) -> None:
-    if not _column_exists(cur, "stocks", "exchange"):
-        cur.execute("ALTER TABLE `stocks` ADD COLUMN `exchange` VARCHAR(32) NULL AFTER `symbol`")
-    if not _column_exists(cur, "stocks", "isin"):
-        cur.execute("ALTER TABLE `stocks` ADD COLUMN `isin` VARCHAR(32) NULL AFTER `exchange`")
-    if not _column_exists(cur, "stocks", "source"):
-        cur.execute("ALTER TABLE `stocks` ADD COLUMN `source` VARCHAR(32) NOT NULL DEFAULT 'manual' AFTER `quantity`")
-    if not _column_exists(cur, "stocks", "last_synced_price_at"):
-        cur.execute("ALTER TABLE `stocks` ADD COLUMN `last_synced_price_at` DATETIME NULL AFTER `source`")
-
-
-def ensure_mutual_fund_columns(cur) -> None:
-    if not _column_exists(cur, "mutual_funds", "scheme_code"):
-        cur.execute("ALTER TABLE `mutual_funds` ADD COLUMN `scheme_code` VARCHAR(64) NULL AFTER `fund_name`")
-    if not _column_exists(cur, "mutual_funds", "units"):
-        cur.execute("ALTER TABLE `mutual_funds` ADD COLUMN `units` DOUBLE NOT NULL DEFAULT 0 AFTER `sip`")
-    if not _column_exists(cur, "mutual_funds", "average_nav"):
-        cur.execute("ALTER TABLE `mutual_funds` ADD COLUMN `average_nav` DOUBLE NOT NULL DEFAULT 0 AFTER `units`")
-    if not _column_exists(cur, "mutual_funds", "latest_nav"):
-        cur.execute("ALTER TABLE `mutual_funds` ADD COLUMN `latest_nav` DOUBLE NOT NULL DEFAULT 0 AFTER `average_nav`")
-    if not _column_exists(cur, "mutual_funds", "nav_synced_at"):
-        cur.execute("ALTER TABLE `mutual_funds` ADD COLUMN `nav_synced_at` DATETIME NULL AFTER `latest_nav`")
-
-    if _column_exists(cur, "mutual_funds", "invested"):
-        cur.execute("ALTER TABLE `mutual_funds` DROP COLUMN `invested`")
-    if _column_exists(cur, "mutual_funds", "returns_pct"):
-        cur.execute("ALTER TABLE `mutual_funds` DROP COLUMN `returns_pct`")
-    if _column_exists(cur, "mutual_funds", "current_value"):
-        cur.execute("ALTER TABLE `mutual_funds` DROP COLUMN `current_value`")
-
-
-def ensure_fixed_deposit_reference_columns(cur) -> None:
-    if not _column_exists(cur, "fixed_deposits", "account_id"):
-        cur.execute("ALTER TABLE `fixed_deposits` ADD COLUMN `account_id` INT NULL AFTER `id`")
-
-    if not _index_exists(cur, "fixed_deposits", "idx_fixed_deposits_account_id"):
-        cur.execute("ALTER TABLE `fixed_deposits` ADD INDEX `idx_fixed_deposits_account_id` (`account_id`)")
-
-    if not _constraint_exists(cur, "fixed_deposits", "fk_fixed_deposits_account"):
-        cur.execute(
-            """
-            ALTER TABLE `fixed_deposits`
-            ADD CONSTRAINT `fk_fixed_deposits_account`
-            FOREIGN KEY (`account_id`) REFERENCES `bank_accounts`(`id`)
-            ON UPDATE CASCADE ON DELETE SET NULL
-            """
-        )
-
-    if _column_exists(cur, "fixed_deposits", "bank"):
-        cur.execute("ALTER TABLE `fixed_deposits` DROP COLUMN `bank`")
-    if _column_exists(cur, "fixed_deposits", "days_to_mature"):
-        cur.execute("ALTER TABLE `fixed_deposits` DROP COLUMN `days_to_mature`")
-
-
-def sync_bank_account_reference_data(cur) -> None:
-    if _column_exists(cur, "bank_accounts", "account_holder"):
-        cur.execute(
-            """
-            INSERT INTO `users` (`full_name`)
-            SELECT DISTINCT TRIM(`account_holder`)
-            FROM `bank_accounts`
-            WHERE TRIM(COALESCE(`account_holder`, '')) <> ''
-            ON DUPLICATE KEY UPDATE `full_name` = VALUES(`full_name`)
-            """
-        )
-    if _column_exists(cur, "bank_accounts", "bank_name"):
-        cur.execute(
-            """
-            INSERT INTO `banks` (`name`)
-            SELECT DISTINCT TRIM(`bank_name`)
-            FROM `bank_accounts`
-            WHERE TRIM(COALESCE(`bank_name`, '')) <> ''
-            ON DUPLICATE KEY UPDATE `name` = VALUES(`name`)
-            """
-        )
-    if _column_exists(cur, "bank_accounts", "account_holder") and _column_exists(cur, "bank_accounts", "bank_name"):
-        cur.execute(
-            """
-            UPDATE `bank_accounts` ba
-            LEFT JOIN `users` u ON u.`full_name` = TRIM(ba.`account_holder`)
-            LEFT JOIN `banks` b ON b.`name` = TRIM(ba.`bank_name`)
-            SET
-                ba.`user_id` = COALESCE(ba.`user_id`, u.`id`),
-                ba.`bank_id` = COALESCE(ba.`bank_id`, b.`id`)
-            """
-        )
 
 
 def truncate_tables() -> None:
-    with get_connection(Config.MYSQL_DB) as conn:
+    with get_connection() as conn:
         with conn.cursor() as cur:
-            cur.execute("SET FOREIGN_KEY_CHECKS = 0")
             for table_name in TABLE_DEFINITIONS:
-                cur.execute(f"TRUNCATE TABLE `{table_name}`")
-            cur.execute("SET FOREIGN_KEY_CHECKS = 1")
+                cur.execute(f"DELETE FROM {table_name}")
 
 
 def seed_tables(workbook_path: Path) -> dict[str, int]:
     dataset = parse_workbook_rows(workbook_path)
     inserted_counts: dict[str, int] = {}
 
-    with get_connection(Config.MYSQL_DB) as conn:
+    with get_connection() as conn:
         with conn.cursor() as cur:
             for table_name, rows in dataset.items():
                 if not rows:
                     inserted_counts[table_name] = 0
                     continue
                 columns = list(rows[0].keys())
-                placeholders = ", ".join(["%s"] * len(columns))
-                sql = (
-                    f"INSERT INTO `{table_name}` ({', '.join(f'`{column}`' for column in columns)}) "
-                    f"VALUES ({placeholders})"
-                )
-                payload = [
-                    tuple(normalize_value(row[column]) for column in columns)
-                    for row in rows
-                ]
+                placeholders = ", ".join(["?"] * len(columns))
+                column_names = ", ".join(columns)
+                sql = f"INSERT INTO {table_name} ({column_names}) VALUES ({placeholders})"
+                payload = [tuple(normalize_value(row[column]) for column in columns) for row in rows]
                 cur.executemany(sql, payload)
                 inserted_counts[table_name] = len(payload)
-            sync_bank_account_reference_data(cur)
 
     return inserted_counts
 
@@ -839,7 +671,7 @@ def main() -> None:
     truncate_tables()
     counts = seed_tables(WORKBOOK_PATH)
 
-    print(f"Schema ready: {Config.MYSQL_DB}")
+    print("Schema ready: in-memory SQLite")
     for table_name in ENTITY_ORDER:
         print(f"{table_name}: {counts.get(table_name, 0)} rows")
 

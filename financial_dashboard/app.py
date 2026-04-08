@@ -5,7 +5,7 @@ import json
 import threading
 import zipfile
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from io import BytesIO
 from pathlib import Path
 from typing import Any
@@ -15,7 +15,6 @@ from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 from xml.sax.saxutils import escape
 
-import pymysql
 from flask import Flask, abort, flash, redirect, render_template, request, send_file, session, url_for
 from itsdangerous import URLSafeSerializer
 from werkzeug.security import check_password_hash, generate_password_hash
@@ -229,14 +228,6 @@ ENTITY_CONFIG = {
 DB_LOCK = threading.Lock()
 
 
-class Config:
-    MYSQL_HOST = os.getenv("MYSQL_HOST", "localhost")
-    MYSQL_USER = os.getenv("MYSQL_USER", "root")
-    MYSQL_PASSWORD = os.getenv("MYSQL_PASSWORD", "teja@4795")
-    MYSQL_DB = os.getenv("MYSQL_DB", "teja")
-    MYSQL_PORT = int(os.getenv("MYSQL_PORT", "3306"))
-
-
 def as_float(value: Any, default: float = 0.0) -> float:
     try:
         return float(value)
@@ -300,15 +291,7 @@ def ensure_database_ready() -> None:
         create_database()
         create_tables()
 
-        with pymysql.connect(
-            host=Config.MYSQL_HOST,
-            user=Config.MYSQL_USER,
-            password=Config.MYSQL_PASSWORD,
-            database=Config.MYSQL_DB,
-            charset="utf8mb4",
-            autocommit=True,
-            cursorclass=pymysql.cursors.DictCursor,
-        ) as conn:
+        with get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute("SELECT COUNT(*) AS count FROM bank_accounts")
                 row = cur.fetchone()
@@ -318,34 +301,30 @@ def ensure_database_ready() -> None:
 
 
 def get_connection():
-    return pymysql.connect(
-        host=Config.MYSQL_HOST,
-        user=Config.MYSQL_USER,
-        password=Config.MYSQL_PASSWORD,
-        database=Config.MYSQL_DB,
-        charset="utf8mb4",
-        port=Config.MYSQL_PORT,
-        autocommit=True,
-        cursorclass=pymysql.cursors.DictCursor,
-    )
+    try:
+        from .db.mysql_seed import get_connection as seed_connection
+    except ImportError:
+        from db.mysql_seed import get_connection as seed_connection
+    return seed_connection()
 
 
 def adapt_query(query: str) -> str:
-    return query.replace("?", "%s")
+    return query
 
 
 def fetch_all(query: str, params: tuple[Any, ...] = ()) -> list[dict[str, Any]]:
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(adapt_query(query), params)
-            return cur.fetchall()
+            return [dict(row) for row in cur.fetchall()]
 
 
 def fetch_one(query: str, params: tuple[Any, ...] = ()) -> dict[str, Any] | None:
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(adapt_query(query), params)
-            return cur.fetchone()
+            row = cur.fetchone()
+            return dict(row) if row is not None else None
 
 
 def execute(query: str, params: tuple[Any, ...] = ()) -> None:
@@ -1208,6 +1187,22 @@ def build_workbook_from_db() -> BytesIO:
     return build_workbook_from_data(sheets_data)
 
 
+def _to_date(value: Any) -> datetime.date | None:
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
+    if isinstance(value, str):
+        try:
+            return datetime.fromisoformat(value).date()
+        except ValueError:
+            try:
+                return datetime.strptime(value, "%Y-%m-%d").date()
+            except ValueError:
+                return None
+    return None
+
+
 def build_dashboard_metrics() -> dict[str, Any]:
     today = datetime.now().date()
     fd_rows = fetch_all("SELECT * FROM fixed_deposits")
@@ -1249,7 +1244,7 @@ def build_dashboard_metrics() -> dict[str, Any]:
         "COALESCE((SELECT SUM(amount) FROM utility_bills), 0) AS total"
     )["total"]
 
-    upcoming_fds = fetch_all(
+    raw_fds = fetch_all(
         """
         SELECT
             fd.*,
@@ -1260,14 +1255,21 @@ def build_dashboard_metrics() -> dict[str, Any]:
         LEFT JOIN users u ON u.id = ba.user_id
         LEFT JOIN banks b ON b.id = ba.bank_id
         WHERE fd.maturity_date IS NOT NULL
-          AND DATEDIFF(fd.maturity_date, CURDATE()) BETWEEN 0 AND 120
         ORDER BY fd.maturity_date ASC
-        LIMIT 5
         """
     )
-    for row in upcoming_fds:
-        row["current_amount"] = compute_fixed_deposit_current_amount(row, as_float, today)
-        row["days_to_mature"] = compute_fixed_deposit_days_to_mature(row, today)
+    upcoming_fds = []
+    for row in raw_fds:
+        maturity_date = _to_date(row.get("maturity_date"))
+        if maturity_date is None:
+            continue
+        days_diff = (maturity_date - today).days
+        if 0 <= days_diff <= 120:
+            row["current_amount"] = compute_fixed_deposit_current_amount(row, as_float, today)
+            row["days_to_mature"] = days_diff
+            upcoming_fds.append(row)
+            if len(upcoming_fds) >= 5:
+                break
     highest_balances = fetch_all(
         """
         SELECT u.full_name AS account_holder, b.name AS bank_name, ba.balance
