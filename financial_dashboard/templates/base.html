@@ -125,12 +125,91 @@
     .report-kpis .metric { font-size: 1.75rem; }
     .report-notes { display: grid; gap: 10px; margin-top: 14px; }
     .report-notes p { margin: 0; padding: 12px 14px; border-left: 4px solid var(--accent); background: rgba(11, 110, 79, 0.06); border-radius: 10px; }
+    .attention-grid { grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); }
+    .attention-card { position: relative; overflow: hidden; }
+    .attention-card::after { content: ""; position: absolute; right: -34px; top: -34px; width: 96px; height: 96px; border-radius: 50%; border: 18px solid rgba(11, 110, 79, 0.08); }
+    .future-panel { border-color: rgba(53, 92, 125, 0.24); }
+    .future-panel > .grid-header { padding-bottom: 14px; border-bottom: 1px solid var(--line); }
     .report-ledger { display: grid; gap: 12px; margin-top: 14px; }
     .report-ledger div { display: flex; justify-content: space-between; gap: 18px; padding: 12px 0; border-bottom: 1px solid var(--line); }
     .report-ledger div:last-child { border-bottom: 0; }
     .report-progress { grid-template-columns: 150px 1fr minmax(190px, auto); }
     .report-progress small { color: var(--muted); margin-left: 6px; }
     .report-table { box-shadow: none; background: rgba(255, 255, 255, 0.38); }
+    .report-visual-grid { display: grid; grid-template-columns: 1.05fr 1.2fr; gap: 18px; }
+    .allocation-map { display: grid; grid-template-columns: 220px 1fr; gap: 18px; align-items: center; margin-top: 16px; }
+    .donut { width: 220px; aspect-ratio: 1; border-radius: 50%; display: grid; place-items: center; box-shadow: inset 0 0 0 1px var(--line); }
+    .donut > div { width: 132px; aspect-ratio: 1; border-radius: 50%; display: grid; place-items: center; text-align: center; background: var(--panel-strong); border: 1px solid var(--line); padding: 18px; }
+    .donut strong { font-size: 1.05rem; line-height: 1.15; }
+    .donut span { color: var(--muted); font-size: 0.82rem; }
+    .legend-grid { display: grid; gap: 10px; }
+    .legend-item { display: grid; grid-template-columns: 12px 1fr auto; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--line); }
+    .legend-item:last-child { border-bottom: 0; }
+    .legend-item i { width: 12px; height: 12px; border-radius: 50%; display: block; }
+    .flow-diagram { display: grid; grid-template-columns: 1fr 54px 1fr 54px 1fr; gap: 0; align-items: center; margin-top: 20px; }
+    .flow-node { min-height: 118px; border: 1px solid var(--line); border-radius: 18px; display: grid; align-content: center; gap: 8px; padding: 18px; text-align: center; background: rgba(255, 255, 255, 0.54); }
+    .flow-node span { color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; font-size: 0.72rem; }
+    .flow-node strong { font-size: 1.15rem; line-height: 1.2; }
+    .flow-node.income { border-color: rgba(11, 110, 79, 0.3); }
+    .flow-node.spend { border-color: rgba(194, 109, 43, 0.34); }
+    .flow-node.surplus { background: rgba(11, 110, 79, 0.09); }
+    .flow-path { height: 2px; background: var(--line); position: relative; }
+    .flow-path span { position: absolute; right: -1px; top: -5px; width: 0; height: 0; border-top: 6px solid transparent; border-bottom: 6px solid transparent; border-left: 9px solid rgba(31, 41, 51, 0.32); }
+    .spark-stack { display: grid; gap: 10px; margin-top: 18px; }
+    .spark-row { display: grid; grid-template-columns: minmax(90px, 130px) 1fr auto; gap: 10px; align-items: center; font-size: 0.92rem; }
+    .spark-row div, .performance-track, .timeline-row div { height: 10px; background: rgba(31, 41, 51, 0.08); border-radius: 999px; overflow: hidden; }
+    .spark-row i, .performance-track i, .timeline-row i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--accent), var(--accent-2)); }
+    .balance-stack { display: grid; gap: 12px; margin-top: 18px; position: relative; }
+    .balance-stack::before { content: ""; position: absolute; left: 22px; top: 32px; bottom: 32px; width: 2px; background: var(--line); }
+    .balance-stack div { position: relative; display: flex; justify-content: space-between; gap: 12px; padding: 16px 18px 16px 54px; border: 1px solid var(--line); border-radius: 16px; background: rgba(255, 255, 255, 0.48); }
+    .balance-stack div::before { content: ""; position: absolute; left: 15px; top: 50%; width: 16px; height: 16px; transform: translateY(-50%); border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 5px var(--accent-soft); }
+    .performance-board { display: grid; gap: 10px; margin: 18px 0; }
+    .performance-row { display: grid; grid-template-columns: minmax(150px, 230px) 1fr auto; gap: 14px; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--line); }
+    .performance-row:last-child { border-bottom: 0; }
+    .performance-row div:first-child { display: grid; gap: 4px; }
+    .performance-row span { color: var(--muted); font-size: 0.86rem; }
+    .performance-row.loss .performance-track i { background: linear-gradient(90deg, #b42318, #c26d2b); }
+    .timeline { display: grid; gap: 12px; margin: 18px 0; }
+    .timeline-row { display: grid; grid-template-columns: 52px 1fr minmax(90px, auto); gap: 10px; align-items: center; }
+    .treemap { min-height: 280px; display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+    .treemap div { min-width: 128px; min-height: 92px; flex-grow: 1; border-radius: 18px; padding: 14px; color: #fff; display: grid; align-content: end; gap: 6px; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.24); }
+    .treemap span { font-size: 0.9rem; }
+    .treemap strong { font-size: 1.25rem; }
+    .comparison-bars { display: grid; gap: 14px; margin-top: 18px; }
+    .comparison-row { display: grid; grid-template-columns: 84px 1fr auto; gap: 12px; align-items: center; }
+    .comparison-row div { height: 22px; border-radius: 999px; overflow: hidden; background: rgba(31, 41, 51, 0.08); }
+    .comparison-row i { display: block; height: 100%; border-radius: inherit; }
+    .runway-gauge { display: grid; grid-template-columns: 120px 1fr; gap: 16px; align-items: center; margin-top: 24px; }
+    .runway-gauge > div { height: 120px; border-radius: 50%; display: grid; place-items: center; background: conic-gradient(var(--accent) var(--runway), rgba(31, 41, 51, 0.08) 0); }
+    .runway-gauge span { width: 74px; height: 74px; border-radius: 50%; background: var(--panel-strong); border: 1px solid var(--line); }
+    .runway-gauge p { margin: 0; color: var(--muted); }
+    .ladder { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; align-items: end; min-height: 270px; margin-top: 22px; }
+    .ladder-step { display: grid; gap: 8px; text-align: center; align-items: end; }
+    .ladder-bar { height: 170px; display: flex; align-items: end; padding: 8px; border-radius: 18px; background: rgba(31, 41, 51, 0.07); overflow: hidden; }
+    .ladder-bar i { width: 100%; min-height: 4px; border-radius: 12px; background: linear-gradient(180deg, var(--accent-2), var(--accent)); display: block; }
+    .ladder-step span, .ladder-step small { color: var(--muted); }
+    .page-visual-grid { display: grid; grid-template-columns: minmax(260px, 0.9fr) minmax(320px, 1.2fr); gap: 18px; margin-bottom: 18px; }
+    .mini-donut { width: 180px; aspect-ratio: 1; border-radius: 50%; display: grid; place-items: center; margin: 14px auto 0; box-shadow: inset 0 0 0 1px var(--line); }
+    .mini-donut > div { width: 108px; aspect-ratio: 1; border-radius: 50%; display: grid; place-items: center; text-align: center; background: var(--panel-strong); border: 1px solid var(--line); padding: 14px; }
+    .mini-donut strong { line-height: 1.15; }
+    .visual-bars { display: grid; gap: 12px; margin-top: 14px; }
+    .visual-bar-row { display: grid; grid-template-columns: minmax(110px, 170px) 1fr auto; gap: 12px; align-items: center; }
+    .visual-bar-row > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .visual-bar-row div { height: 12px; border-radius: 999px; overflow: hidden; background: rgba(31, 41, 51, 0.08); }
+    .visual-bar-row i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--accent), var(--accent-2)); }
+    .mini-treemap { min-height: 210px; display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+    .mini-treemap div { min-width: 120px; min-height: 76px; flex-grow: 1; border-radius: 16px; padding: 12px; color: #fff; display: grid; align-content: end; gap: 4px; background: var(--accent); }
+    .mini-treemap span { font-size: 0.86rem; }
+    .mini-treemap strong { font-size: 1.05rem; }
+    .visual-timeline { display: grid; gap: 12px; margin-top: 14px; }
+    .visual-timeline-row { display: grid; grid-template-columns: 72px 1fr minmax(90px, auto); gap: 10px; align-items: center; }
+    .visual-timeline-row div { height: 10px; border-radius: 999px; overflow: hidden; background: rgba(31, 41, 51, 0.08); }
+    .visual-timeline-row i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--accent-2), var(--accent)); }
+    .status-flow { display: grid; grid-template-columns: 1fr 42px 1fr 42px 1fr; align-items: center; margin-top: 16px; }
+    .status-node { min-height: 96px; border: 1px solid var(--line); border-radius: 16px; display: grid; align-content: center; gap: 6px; text-align: center; padding: 14px; background: rgba(255,255,255,0.5); }
+    .status-node span { color: var(--muted); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.08em; }
+    .status-link { height: 2px; background: var(--line); position: relative; }
+    .status-link::after { content: ""; position: absolute; right: -1px; top: -5px; width: 0; height: 0; border-top: 6px solid transparent; border-bottom: 6px solid transparent; border-left: 9px solid rgba(31, 41, 51, 0.32); }
     @media print {
       body { background: #fff; }
       .shell { width: 100%; margin: 0; display: block; }
@@ -146,6 +225,13 @@
       .sidebar { position: static; }
       .report-cover { display: grid; }
       .report-progress { grid-template-columns: 1fr; }
+      .report-visual-grid, .allocation-map, .flow-diagram, .performance-row, .page-visual-grid, .visual-bar-row { grid-template-columns: 1fr; }
+      .runway-gauge, .comparison-row { grid-template-columns: 1fr; }
+      .ladder { grid-template-columns: repeat(2, 1fr); }
+      .status-flow { grid-template-columns: 1fr; gap: 10px; }
+      .status-link { display: none; }
+      .flow-path { height: 28px; width: 2px; justify-self: center; }
+      .flow-path span { right: -5px; top: auto; bottom: -1px; border-left: 6px solid transparent; border-right: 6px solid transparent; border-top: 9px solid rgba(31, 41, 51, 0.32); border-bottom: 0; }
     }
   </style>
 </head>
@@ -159,7 +245,6 @@
       <div class="nav-section">
         <h2>Dashboard Overview</h2>
         <a class="nav-link {% if request.endpoint == 'dashboard' %}active{% endif %}" href="{{ url_for('dashboard') }}">Dashboard</a>
-        <a class="nav-link {% if request.endpoint in ['reports', 'reports_export_csv'] %}active{% endif %}" href="{{ url_for('reports') }}">Reports</a>
       </div>
       <div class="nav-section">
         <h2>Data Sections</h2>

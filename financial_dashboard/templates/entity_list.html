@@ -32,25 +32,77 @@
         <p class="metric">{{ format_currency(summary.average_value) }}</p>
         <div class="kpi-note">A quick benchmark across the dataset.</div>
       </article>
+    {% endif %}
+  </section>
+
+  {% if summary.primary_numeric %}
+    <section class="page-visual-grid">
       <article class="card">
-        <div class="eyebrow">Top Row</div>
-        <p class="metric">
+        <div class="eyebrow">Shape</div>
+        <h3>Top row share</h3>
+        {% set top_value = summary.top_row[summary.primary_numeric.name] if summary.top_row else 0 %}
+        {% set top_share = (top_value / summary.total_value * 100) if summary.total_value else 0 %}
+        <div class="mini-donut" style="background: conic-gradient(var(--accent) 0% {{ top_share }}%, rgba(31, 41, 51, 0.08) {{ top_share }}% 100%);">
+          <div><strong>{{ "%.1f"|format(top_share) }}%</strong><span>top row</span></div>
+        </div>
+        <div class="kpi-note" style="text-align:center; margin-top:12px;">
           {% if summary.top_row %}
-            {{ format_currency(summary.top_row[summary.primary_numeric.name]) }}
+            The largest row contributes {{ "%.1f"|format(top_share) }}% of this section's value.
           {% else %}
-            Rs. 0.00
-          {% endif %}
-        </p>
-        <div class="kpi-note">
-          {% if summary.top_row %}
-            Highest {{ summary.primary_numeric.label|lower }} in this section.
-          {% else %}
-            No data available.
+            No value distribution is available yet.
           {% endif %}
         </div>
       </article>
-    {% endif %}
-  </section>
+      <article class="card">
+        <div class="eyebrow">Distribution</div>
+        <h3>Largest values</h3>
+        <div class="visual-bars">
+          {% for row in rows|sort(attribute=summary.primary_numeric.name, reverse=true) %}
+            {% if loop.index <= 8 %}
+              {% set amount = row[summary.primary_numeric.name] or 0 %}
+              {% set label_column = entity.columns|selectattr("type", "equalto", "text")|first %}
+              {% set label = row[label_column.name] if label_column else ("Row " ~ row.id) %}
+              <div class="visual-bar-row">
+                <span>{{ label or ("Row " ~ row.id) }}</span>
+                <div><i style="width: {{ (amount / top_value * 100) if top_value else 0 }}%"></i></div>
+                <strong>{{ format_currency(amount) }}</strong>
+              </div>
+            {% endif %}
+          {% else %}
+            <div class="muted">No rows to chart.</div>
+          {% endfor %}
+        </div>
+      </article>
+    </section>
+
+    <section class="card">
+      <div class="eyebrow">Forward View</div>
+      <h3>What this section implies next</h3>
+      <div class="status-flow">
+        <div class="status-node"><span>Current</span><strong>{{ format_currency(summary.total_value) }}</strong></div>
+        <div class="status-link"></div>
+        <div class="status-node"><span>12M Run-Rate</span><strong>{{ format_currency(summary.total_value * 12) }}</strong></div>
+        <div class="status-link"></div>
+        <div class="status-node"><span>Average Row</span><strong>{{ format_currency(summary.average_value) }}</strong></div>
+      </div>
+      {% set date_columns = entity.columns|selectattr("type", "equalto", "date")|list %}
+      {% if date_columns %}
+        {% set date_column = date_columns|first %}
+        {% set dated_rows = rows|selectattr(date_column.name)|sort(attribute=date_column.name)|list %}
+        <div class="visual-timeline">
+          {% for row in dated_rows %}
+            {% if loop.index <= 6 %}
+              <div class="visual-timeline-row">
+                <span>{{ row[date_column.name] }}</span>
+                <div><i style="width: {{ ((row[summary.primary_numeric.name] or 0) / (summary.top_row[summary.primary_numeric.name] or 1) * 100) if summary.top_row else 0 }}%"></i></div>
+                <strong>{{ format_currency(row[summary.primary_numeric.name]) }}</strong>
+              </div>
+            {% endif %}
+          {% endfor %}
+        </div>
+      {% endif %}
+    </section>
+  {% endif %}
 
   <section class="card">
     <div class="grid-header">

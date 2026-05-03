@@ -37,51 +37,76 @@
     </article>
   </section>
 
-  <section class="split">
+  <section class="page-visual-grid">
     <article class="card">
-      <div class="eyebrow">Largest Position</div>
-      <h3>Main chit exposure</h3>
-      <div class="stack">
-        <div>
-          <strong>{% if insights.largest_chit %}{{ insights.largest_chit.display_name }}{% else %}No data{% endif %}</strong>
-          <div class="kpi-note">
-            {% if insights.largest_chit %}
-              {{ insights.largest_chit.chit_type }} chit worth {{ format_currency(insights.largest_chit.exposure_value) }} right now.
-            {% endif %}
-          </div>
-        </div>
+      <div class="eyebrow">Chit Mix</div>
+      <h3>Standard vs variable</h3>
+      {% set standard_share = (insights.total_standard_current / insights.total_chit_value * 100) if insights.total_chit_value else 0 %}
+      <div class="mini-donut" style="background: conic-gradient(var(--accent) 0% {{ standard_share }}%, var(--accent-2) {{ standard_share }}% 100%);">
+        <div><strong>{{ "%.1f"|format(standard_share) }}%</strong><span>standard</span></div>
+      </div>
+      <div class="legend-grid" style="margin-top:14px;">
+        <div class="legend-item"><i style="background: var(--accent)"></i><span>Standard chits</span><strong>{{ format_currency(insights.total_standard_current) }}</strong></div>
+        <div class="legend-item"><i style="background: var(--accent-2)"></i><span>Variable chits</span><strong>{{ format_currency(insights.total_variable_net) }}</strong></div>
       </div>
     </article>
-
     <article class="card">
-      <div class="eyebrow">Next Maturity</div>
-      <h3>Upcoming closeout to watch</h3>
-      <div class="stack">
-        <div>
-          <strong>{% if insights.next_maturity %}{{ insights.next_maturity.display_name }}{% else %}No future maturity{% endif %}</strong>
-          <div class="kpi-note">
-            {% if insights.next_maturity %}
-              Matures on {{ insights.next_maturity.maturity_date }} in {{ insights.next_maturity.days_to_maturity }} days.
-            {% endif %}
-          </div>
-        </div>
-        <div>
-          <strong>Variable payments completed</strong>
-          <div class="kpi-note">{{ format_currency(insights.paid_payment_total) }} already marked as paid.</div>
-        </div>
+      <div class="eyebrow">Payment Flow</div>
+      <h3>Scheduled vs paid</h3>
+      <div class="status-flow">
+        <div class="status-node"><span>Paid</span><strong>{{ format_currency(insights.paid_payment_total) }}</strong></div>
+        <div class="status-link"></div>
+        <div class="status-node"><span>Pending</span><strong>{{ format_currency(insights.pending_payment_total) }}</strong></div>
+        <div class="status-link"></div>
+        <div class="status-node"><span>EMI Load</span><strong>{{ format_currency(insights.total_standard_emi) }}</strong></div>
       </div>
     </article>
   </section>
 
   <section class="card">
+    <div class="eyebrow">Next Maturity</div>
+    <h3>Upcoming closeout to watch</h3>
+    <strong>{% if insights.next_maturity %}{{ insights.next_maturity.display_name }}{% else %}No future maturity{% endif %}</strong>
+    <div class="kpi-note">
+      {% if insights.next_maturity %}
+        Matures on {{ insights.next_maturity.maturity_date }} in {{ insights.next_maturity.days_to_maturity }} days.
+      {% else %}
+        No dated chit maturity is currently scheduled.
+      {% endif %}
+    </div>
+  </section>
+
+  <section class="card future-panel">
+    <div class="eyebrow">Forward View</div>
+    <h3>Chit cash commitments ahead</h3>
+    {% set remaining_standard = namespace(amount=0) %}
+    {% set remaining_variable = namespace(amount=0) %}
+    {% for row in standard_rows %}
+      {% set remaining_standard.amount = remaining_standard.amount + ((row.remaining_months or 0) * (row.emi or 0)) %}
+    {% endfor %}
+    {% for row in variable_rows %}
+      {% set avg_variable_emi = (row.total_paid / row.emi_paid) if row.emi_paid else 0 %}
+      {% set remaining_variable.amount = remaining_variable.amount + ((row.remaining_emis or 0) * avg_variable_emi) %}
+    {% endfor %}
+    <div class="status-flow">
+      <div class="status-node"><span>Std Remaining</span><strong>{{ format_currency(remaining_standard.amount) }}</strong></div>
+      <div class="status-link"></div>
+      <div class="status-node"><span>Variable Estimate</span><strong>{{ format_currency(remaining_variable.amount) }}</strong></div>
+      <div class="status-link"></div>
+      <div class="status-node"><span>Pending Schedule</span><strong>{{ format_currency(insights.pending_payment_total) }}</strong></div>
+    </div>
+    <div class="kpi-note" style="margin-top:12px;">Variable remaining amount is estimated from average paid EMI so far; pending schedule uses explicit payment rows.</div>
+  </section>
+
+  <section class="card">
     <div class="eyebrow">Exposure Concentration</div>
     <h3>Which chits dominate the portfolio</h3>
-    <div class="progress">
+    <div class="visual-bars">
       {% for row in insights.concentration %}
-        <div class="progress-row">
-          <strong>{{ row.display_name }}</strong>
-          <div class="bar"><span style="width: {{ (row.exposure_value / insights.largest_exposure * 100) if insights.largest_exposure else 0 }}%"></span></div>
-          <span>{{ format_currency(row.exposure_value) }} · {{ row.chit_type }}</span>
+        <div class="visual-bar-row">
+          <span>{{ row.display_name }}</span>
+          <div><i style="width: {{ (row.exposure_value / insights.largest_exposure * 100) if insights.largest_exposure else 0 }}%"></i></div>
+          <strong>{{ format_currency(row.exposure_value) }} &middot; {{ row.chit_type }}</strong>
         </div>
       {% else %}
         <div class="muted">No chit positions available.</div>

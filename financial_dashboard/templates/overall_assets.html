@@ -26,31 +26,52 @@
       <div class="kpi-note">Average value across the tracked ledger.</div>
     </article>
     <article class="card">
-      <div class="eyebrow">Largest Asset</div>
-      <p class="metric">{% if insights.largest_asset %}{{ insights.largest_asset.label }}{% else %}No data{% endif %}</p>
-      <div class="kpi-note">{% if insights.largest_asset %}{{ format_currency(insights.largest_asset.amount) }} is currently the largest line item.{% endif %}</div>
-    </article>
-    <article class="card">
       <div class="eyebrow">Smallest Asset</div>
       <p class="metric">{% if insights.smallest_asset %}{{ insights.smallest_asset.label }}{% else %}No data{% endif %}</p>
       <div class="kpi-note">{% if insights.smallest_asset %}{{ format_currency(insights.smallest_asset.amount) }} is currently the smallest line item.{% endif %}</div>
     </article>
   </section>
 
-  <section class="card">
-    <div class="eyebrow">Asset Mix</div>
-    <h3>Which asset lines dominate the ledger</h3>
-    <div class="progress">
-      {% for item in insights.asset_mix %}
-        <div class="progress-row">
-          <strong>{{ item.label }}</strong>
-          <div class="bar"><span style="width: {{ (item.amount / insights.largest_mix_value * 100) if insights.largest_mix_value else 0 }}%"></span></div>
-          <span>{{ format_currency(item.amount) }}</span>
-        </div>
-      {% else %}
-        <div class="muted">No overall assets available.</div>
-      {% endfor %}
+  <section class="page-visual-grid">
+    <article class="card">
+      <div class="eyebrow">Concentration</div>
+      <h3>Largest asset share</h3>
+      {% set largest_amount = insights.largest_asset.amount if insights.largest_asset else 0 %}
+      {% set largest_share = (largest_amount / insights.total_assets * 100) if insights.total_assets else 0 %}
+      <div class="mini-donut" style="background: conic-gradient(var(--accent) 0% {{ largest_share }}%, rgba(31, 41, 51, 0.08) {{ largest_share }}% 100%);">
+        <div><strong>{{ "%.1f"|format(largest_share) }}%</strong><span>largest line</span></div>
+      </div>
+      <div class="kpi-note" style="text-align:center; margin-top:12px;">
+        {% if insights.largest_asset %}{{ insights.largest_asset.label }} carries the largest share of this ledger.{% else %}No assets to chart yet.{% endif %}
+      </div>
+    </article>
+    <article class="card">
+      <div class="eyebrow">Treemap</div>
+      <h3>Ledger weight</h3>
+      <div class="mini-treemap">
+        {% for item in insights.asset_mix %}
+          <div style="flex-basis: {{ (item.amount / insights.total_assets * 100) if insights.total_assets else 10 }}%;">
+            <span>{{ item.label }}</span>
+            <strong>{{ format_currency(item.amount) }}</strong>
+          </div>
+        {% else %}
+          <div class="muted">No overall assets available.</div>
+        {% endfor %}
+      </div>
+    </article>
+  </section>
+
+  <section class="card future-panel">
+    <div class="eyebrow">Forward View</div>
+    <h3>Long-term asset base</h3>
+    <div class="status-flow">
+      <div class="status-node"><span>Current Base</span><strong>{{ format_currency(insights.total_assets) }}</strong></div>
+      <div class="status-link"></div>
+      <div class="status-node"><span>Largest Line</span><strong>{% if insights.largest_asset %}{{ format_currency(insights.largest_asset.amount) }}{% else %}Rs. 0.00{% endif %}</strong></div>
+      <div class="status-link"></div>
+      <div class="status-node"><span>Review Lines</span><strong>{{ insights.entry_count }}</strong></div>
     </div>
+    <div class="kpi-note" style="margin-top:12px;">These are manually tracked long-term assets, so the useful future action is periodic valuation review rather than a market forecast.</div>
   </section>
 
   <section class="card">

@@ -34,120 +34,251 @@
     <article class="card"><div class="eyebrow">Loan Obligations</div><p class="metric">{{ format_currency(metrics.loan_obligations) }}</p><div class="footer-note">Negative balances and scheduled paydowns captured in the dashboard ledger.</div></article>
   </section>
 
-  <section class="split">
+  <section class="hero report-cover">
+    <div>
+      <div class="eyebrow">Report Pack</div>
+      <h2>Financial Snapshot</h2>
+      <p>A polished, printable view of allocation, cash flow, investment performance, liquidity, maturities, and the biggest attention points in the same dashboard view.</p>
+      <div class="chip-row">
+        <span class="chip">Generated {{ report.generated_on }}</span>
+        <span class="chip">{{ report.rows.bank_accounts|length }} bank accounts</span>
+        <span class="chip">{{ report.rows.stocks|length + report.rows.mutual_funds|length }} market holdings</span>
+        <span class="chip">{{ report.rows.fixed_deposits|length }} fixed deposits</span>
+      </div>
+    </div>
+    <div class="actions no-print">
+      <button type="button" onclick="window.print()">Print Dashboard</button>
+      <a class="btn secondary" href="{{ url_for('reports_export_csv') }}">Export CSV</a>
+    </div>
+  </section>
+
+  <section class="grid metrics report-section attention-grid">
+    {% for card in report.attention_cards %}
+      <article class="card attention-card">
+        <div class="eyebrow">{{ card.label }}</div>
+        <p class="metric">{{ card.value }}</p>
+        <div class="kpi-note">{{ card.note }}</div>
+      </article>
+    {% endfor %}
+  </section>
+
+  <section class="card report-section">
+    <div class="grid-header">
+      <div>
+        <div class="eyebrow">Executive Notes</div>
+        <h3 style="margin:0;">What stands out</h3>
+      </div>
+    </div>
+    <div class="report-notes">
+      {% for note in report.report_notes %}
+        <p>{{ note }}</p>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="card report-section future-panel">
+    <div class="grid-header">
+      <div>
+        <div class="eyebrow">Future Outlook</div>
+        <h3 style="margin:0;">What the current run-rate points to</h3>
+        <div class="kpi-note">Forward-looking insight across income, spending, investments, capital, bills, maturities, and scheduled payments already in the dashboard.</div>
+      </div>
+    </div>
+    <div class="grid metrics attention-grid" style="margin-top:18px;">
+      {% for card in report.future_cards %}
+        <article class="card attention-card">
+          <div class="eyebrow">{{ card.label }}</div>
+          <p class="metric">{{ card.value }}</p>
+          <div class="kpi-note">{{ card.note }}</div>
+        </article>
+      {% endfor %}
+    </div>
+    <div class="page-visual-grid" style="margin-top:18px; margin-bottom:0;">
+      <article class="card">
+        <div class="eyebrow">12M Forward Load</div>
+        <h3>Income, commitments, and sensitivity</h3>
+        <div class="visual-bars">
+          {% for item in report.future_focus %}
+            <div class="visual-bar-row">
+              <span title="{{ item.note }}">{{ item.label }}</span>
+              <div><i style="width: {{ ((item.amount|abs) / report.largest_future_focus * 100) if report.largest_future_focus else 0 }}%"></i></div>
+              <strong>{{ format_currency(item.amount) }}</strong>
+            </div>
+          {% endfor %}
+        </div>
+      </article>
+      <article class="card">
+        <div class="eyebrow">Forward Timeline</div>
+        <h3>Maturities and scheduled payments</h3>
+        <div class="visual-timeline">
+          {% for event in report.future_events %}
+            <div class="visual-timeline-row">
+              <span>{{ event.date }}</span>
+              <div><i style="width: {{ (event.amount / report.largest_future_amount * 100) if report.largest_future_amount else 0 }}%"></i></div>
+              <strong>{{ event.type }}: {{ event.label }} · {{ format_currency(event.amount) }}</strong>
+            </div>
+          {% else %}
+            <div class="muted">No upcoming dated maturity or scheduled payment found.</div>
+          {% endfor %}
+        </div>
+      </article>
+    </div>
+  </section>
+
+  <section class="report-visual-grid report-section">
     <article class="card">
       <div class="eyebrow">Asset Allocation</div>
-      <h3>Capital distribution</h3>
-      <div class="progress">
-        {% for item in metrics.asset_mix %}
-          <div class="progress-row">
-            <strong>{{ item.label }}</strong>
-            <div class="bar"><span style="width: {{ (item.amount / metrics.largest_asset * 100) if metrics.largest_asset else 0 }}%"></span></div>
-            <span>{{ format_currency(item.amount) }}</span>
+      <h3>Portfolio map</h3>
+      <div class="allocation-map">
+        <div class="donut" style="background: conic-gradient({{ report.asset_donut_style }});">
+          <div><strong>{{ format_currency(metrics.asset_total) }}</strong><span>Total assets</span></div>
+        </div>
+        <div class="legend-grid">
+          {% for item in report.asset_allocation %}
+            <div class="legend-item">
+              <i style="background: {{ item.color }}"></i>
+              <span>{{ item.label }}</span>
+              <strong>{{ "%.1f"|format(item.share) }}%</strong>
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+    </article>
+    <article class="card">
+      <div class="eyebrow">Cash Flow</div>
+      <h3>Monthly money flow</h3>
+      <div class="flow-diagram">
+        <div class="flow-node income"><span>Income</span><strong>{{ format_currency(metrics.monthly_income) }}</strong></div>
+        <div class="flow-path"><span></span></div>
+        <div class="flow-node spend"><span>Outflow</span><strong>{{ format_currency(metrics.monthly_spend) }}</strong></div>
+        <div class="flow-path"><span></span></div>
+        <div class="flow-node surplus"><span>Surplus</span><strong>{{ format_currency(metrics.monthly_surplus) }}</strong></div>
+      </div>
+      <div class="spark-stack">
+        {% for row in report.outflow_by_type[:5] %}
+          <div class="spark-row">
+            <span>{{ row.label }}</span>
+            <div><i style="width: {{ (row.amount / report.max_outflow * 100) if report.max_outflow else 0 }}%"></i></div>
+            <strong>{{ format_currency(row.amount) }}</strong>
+          </div>
+        {% endfor %}
+      </div>
+    </article>
+  </section>
+
+  <section class="report-visual-grid report-section">
+    <article class="card">
+      <div class="eyebrow">Asset Treemap</div>
+      <h3>Relative weight by class</h3>
+      <div class="treemap">
+        {% for item in report.asset_allocation %}
+          <div style="flex-basis: {{ item.share if item.share > 4 else 8 }}%; background: {{ item.color }};">
+            <span>{{ item.label }}</span>
+            <strong>{{ "%.1f"|format(item.share) }}%</strong>
           </div>
         {% endfor %}
       </div>
     </article>
     <article class="card">
-      <div class="eyebrow">Quick Actions</div>
-      <h3>Dashboard Dataset Tools</h3>
-      <p class="muted">Open any section below to adjust workbook-backed records before you sync them with the dashboard.</p>
-      <div class="actions">
-        <a class="btn secondary" href="{{ url_for('bank_accounts_page') }}">Banks</a>
-        <a class="btn secondary" href="{{ url_for('entity_list', entity_key='fixed_deposits') }}">Fixed Deposits</a>
-        <a class="btn secondary" href="{{ url_for('entity_list', entity_key='earnings') }}">Earnings</a>
-        <a class="btn secondary" href="{{ url_for('spending_page') }}">Spending</a>
-        <a class="btn secondary" href="{{ url_for('loans_page') }}">Loans</a>
-        <a class="btn secondary" href="{{ url_for('stocks_page') }}">Stocks</a>
-        <a class="btn secondary" href="{{ url_for('mutual_funds_page') }}">Mutual Funds</a>
+      <div class="eyebrow">Income vs Outflow</div>
+      <h3>Monthly shape</h3>
+      <div class="comparison-bars">
+        {% for item in report.income_vs_outflow %}
+          <div class="comparison-row">
+            <span>{{ item.label }}</span>
+            <div><i style="width: {{ ((item.amount|abs) / report.max_cashflow * 100) if report.max_cashflow else 0 }}%; background: {{ item.color }}"></i></div>
+            <strong>{{ format_currency(item.amount) }}</strong>
+          </div>
+        {% endfor %}
+      </div>
+      <div class="runway-gauge">
+        <div style="--runway: {{ (report.liquidity_months / 12 * 100) if report.liquidity_months < 12 else 100 }}%;">
+          <span></span>
+        </div>
+        <p><strong>{{ "%.1f"|format(report.liquidity_months) }} months</strong> of coverage from bank balances and fixed deposits.</p>
       </div>
     </article>
   </section>
 
-  <section class="split">
+  <section class="split report-section">
     <article class="card">
-      <div class="eyebrow">Maturity Alerts</div>
-      <h3>Upcoming fixed deposits</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr><th>Bank</th><th>Maturity Date</th><th>Days Left</th><th>Current Amount</th></tr></thead>
-          <tbody>
-            {% for row in metrics.upcoming_fds %}
-              <tr><td>{{ row.bank }}</td><td>{{ row.maturity_date }}</td><td>{{ row.days_to_mature }}</td><td>{{ format_currency(row.current_amount) }}</td></tr>
-            {% else %}
-              <tr><td colspan="4">No upcoming maturities in the next 120 days.</td></tr>
-            {% endfor %}
-          </tbody>
-        </table>
+      <div class="eyebrow">Allocation Detail</div>
+      <h3>Where the money sits</h3>
+      <div class="progress">
+        {% for item in report.asset_allocation %}
+          <div class="progress-row report-progress">
+            <strong>{{ item.label }}</strong>
+            <div class="bar"><span style="width: {{ item.share }}%; background: {{ item.color }}"></span></div>
+            <span>{{ format_currency(item.amount) }} <small>{{ "%.1f"|format(item.share) }}%</small></span>
+          </div>
+        {% endfor %}
       </div>
     </article>
     <article class="card">
-      <div class="eyebrow">Cash Concentration</div>
-      <h3>Highest bank balances</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr><th>Holder</th><th>Bank</th><th>Balance</th></tr></thead>
-          <tbody>
-            {% for row in metrics.highest_balances %}
-              <tr><td>{{ row.account_holder }}</td><td>{{ row.bank_name }}</td><td>{{ format_currency(row.balance) }}</td></tr>
-            {% else %}
-              <tr><td colspan="3">No bank data available.</td></tr>
-            {% endfor %}
-          </tbody>
-        </table>
+      <div class="eyebrow">Balance Sheet Diagram</div>
+      <h3>Assets to net worth</h3>
+      <div class="balance-stack">
+        <div><span>Assets</span><strong>{{ format_currency(metrics.asset_total) }}</strong></div>
+        <div><span>Loan obligations</span><strong>{{ format_currency(metrics.loan_obligations) }}</strong></div>
+        <div><span>Net worth</span><strong>{{ format_currency(metrics.net_worth) }}</strong></div>
       </div>
     </article>
   </section>
 
-  <section class="split">
-    <article class="card">
-      <div class="eyebrow">Equity Winners</div>
-      <h3>Top stock gains</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr><th>Symbol</th><th>Market Value</th><th>P&amp;L</th></tr></thead>
-          <tbody>
-            {% for row in metrics.top_stock_moves %}
-              <tr><td>{{ row.symbol }}</td><td>{{ format_currency(row.market_value) }}</td><td>{{ format_currency(row.pnl) }}</td></tr>
-            {% else %}
-              <tr><td colspan="3">No stock positions available.</td></tr>
-            {% endfor %}
-          </tbody>
-        </table>
+  <section class="card report-section">
+    <div class="grid-header">
+      <div>
+        <div class="eyebrow">Maturity Distribution</div>
+        <h3 style="margin:0;">Fixed deposit ladder</h3>
+        <div class="kpi-note">A quick view of how much FD value becomes available across time windows.</div>
       </div>
-    </article>
-    <article class="card">
-      <div class="eyebrow">Equity Drags</div>
-      <h3>Positions needing attention</h3>
-      <div class="table-wrap">
-        <table>
-          <thead><tr><th>Symbol</th><th>Market Value</th><th>P&amp;L</th></tr></thead>
-          <tbody>
-            {% for row in metrics.draggers %}
-              <tr><td>{{ row.symbol }}</td><td>{{ format_currency(row.market_value) }}</td><td>{{ format_currency(row.pnl) }}</td></tr>
-            {% else %}
-              <tr><td colspan="3">No stock positions available.</td></tr>
-            {% endfor %}
-          </tbody>
-        </table>
+    </div>
+    <div class="ladder">
+      {% for bucket in report.maturity_buckets %}
+        <div class="ladder-step">
+          <div class="ladder-bar"><i style="height: {{ (bucket.amount / report.max_maturity_bucket * 100) if report.max_maturity_bucket else 0 }}%"></i></div>
+          <strong>{{ format_currency(bucket.amount) }}</strong>
+          <span>{{ bucket.label }}</span>
+          <small>{{ bucket.count }} deposit{{ "" if bucket.count == 1 else "s" }}</small>
+        </div>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="card report-section">
+    <div class="grid-header">
+      <div>
+        <div class="eyebrow">Investment Performance</div>
+        <h3 style="margin:0;">Stocks and mutual funds</h3>
+        <div class="kpi-note">Invested {{ format_currency(report.investment_summary.invested_total) }} against current value {{ format_currency(report.investment_summary.market_total) }}.</div>
       </div>
-    </article>
+    </div>
+    <div class="performance-board">
+      {% for row in report.investment_rows[:8] %}
+        <div class="performance-row {{ 'gain' if row.pnl >= 0 else 'loss' }}">
+          <div>
+            <strong>{{ row.name }}</strong>
+            <span>{{ row.type }} &middot; {{ "%.1f"|format(row.returns_pct) }}%</span>
+          </div>
+          <div class="performance-track"><i style="width: {{ ((row.pnl|abs) / report.max_investment_move * 100) if report.max_investment_move else 0 }}%"></i></div>
+          <strong>{{ format_currency(row.pnl) }}</strong>
+        </div>
+      {% endfor %}
+    </div>
   </section>
 
   <section class="card">
-    <div class="eyebrow">Outgoing Pressure</div>
-    <h3>Largest recurring or planned spends</h3>
-    <div class="table-wrap">
-      <table>
-        <thead><tr><th>Type</th><th>Person</th><th>To</th><th>Amount</th></tr></thead>
-        <tbody>
-          {% for row in metrics.biggest_expenses %}
-            <tr><td>{{ row.spending_type }}</td><td>{{ row.person }}</td><td>{{ row.recipient }}</td><td>{{ format_currency(row.amount) }}</td></tr>
-          {% else %}
-            <tr><td colspan="4">No spending data available.</td></tr>
-          {% endfor %}
-        </tbody>
-      </table>
+    <div class="eyebrow">Quick Actions</div>
+    <h3>Dashboard Dataset Tools</h3>
+    <p class="muted">Open any section below to adjust workbook-backed records before you sync them with the dashboard.</p>
+    <div class="actions">
+      <a class="btn secondary" href="{{ url_for('bank_accounts_page') }}">Banks</a>
+      <a class="btn secondary" href="{{ url_for('entity_list', entity_key='fixed_deposits') }}">Fixed Deposits</a>
+      <a class="btn secondary" href="{{ url_for('entity_list', entity_key='earnings') }}">Earnings</a>
+      <a class="btn secondary" href="{{ url_for('spending_page') }}">Spending</a>
+      <a class="btn secondary" href="{{ url_for('loans_page') }}">Loans</a>
+      <a class="btn secondary" href="{{ url_for('stocks_page') }}">Stocks</a>
+      <a class="btn secondary" href="{{ url_for('mutual_funds_page') }}">Mutual Funds</a>
     </div>
   </section>
 {% endblock %}

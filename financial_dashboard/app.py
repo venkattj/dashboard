@@ -6,7 +6,7 @@ import json
 import threading
 import zipfile
 import os
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from io import BytesIO, StringIO
 from pathlib import Path
 from typing import Any
@@ -1329,6 +1329,27 @@ def percent_of(part: float, whole: float) -> float:
     return (part / whole * 100) if whole else 0.0
 
 
+def normalize_date_value(value: Any) -> date | None:
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
+    text = str(value).strip()
+    if not text:
+        return None
+    for fmt in ("%Y-%m-%d", "%d-%m-%Y"):
+        try:
+            return datetime.strptime(text, fmt).date()
+        except ValueError:
+            continue
+    try:
+        return date.fromisoformat(text)
+    except ValueError:
+        return None
+
+
 def build_report_rows() -> dict[str, list[dict[str, Any]]]:
     today = datetime.now().date()
     fixed_deposits = fetch_all(
@@ -1401,6 +1422,12 @@ def build_report_rows() -> dict[str, list[dict[str, Any]]]:
             ORDER BY amount DESC
             """
         ),
+        "variable_chit_payments": fetch_all(
+            "SELECT emi_no, amount, payment_date, actual_paid FROM variable_chit_payments ORDER BY payment_date ASC, emi_no ASC"
+        ),
+        "sneha_payments": fetch_all(
+            "SELECT payment_date, amount, principal_balance FROM sneha_payments ORDER BY payment_date ASC, id ASC"
+        ),
         "overall_assets": fetch_all("SELECT label, amount, note FROM overall_assets ORDER BY amount DESC"),
     }
 
@@ -1444,18 +1471,229 @@ def build_reports_context() -> dict[str, Any]:
     if market_total or invested_total:
         report_notes.append(f"Market investments show {format_currency(market_total - invested_total)} total P&L.")
 
+    chart_colors = ["#0b6e4f", "#c26d2b", "#355c7d", "#7c3f58", "#4f6f52", "#b54708", "#475569"]
+    allocation = [
+        {**item, "share": percent_of(item["amount"], metrics["asset_total"]), "color": chart_colors[index % len(chart_colors)]}
+        for index, item in enumerate(metrics["asset_mix"])
+    ]
+    cursor = 0.0
+    donut_stops = []
+    for item in allocation:
+        start = cursor
+        cursor += item["share"]
+        donut_stops.append(f"{item['color']} {start:.2f}% {cursor:.2f}%")
+    asset_donut_style = ", ".join(donut_stops) if donut_stops else "#ddd 0% 100%"
+    investment_rows = sorted(
+        [
+            {"name": row["symbol"], "type": "Stock", **row}
+            for row in rows["stocks"]
+        ]
+        + [
+            {"name": row["fund_name"], "type": "Mutual Fund", **row}
+            for row in rows["mutual_funds"]
+        ],
+        key=lambda row: abs(as_float(row.get("pnl"))),
+        reverse=True,
+    )
+    max_investment_move = max((abs(as_float(row.get("pnl"))) for row in investment_rows), default=1) or 1
+    max_outflow = max((as_float(row.get("amount")) for row in rows["outflows"]), default=1) or 1
+    asset_total = as_float(metrics["asset_total"])
+    bank_total = next((as_float(item["amount"]) for item in allocation if item["label"] == "Bank"), 0.0)
+    fd_total = next((as_float(item["amount"]) for item in allocation if item["label"] == "Fixed Deposits"), 0.0)
+    liquid_total = bank_total + fd_total
+    liquidity_months = (liquid_total / outflow_total) if outflow_total else 0.0
+    income_vs_outflow = [
+        {"label": "Income", "amount": as_float(metrics["monthly_income"]), "color": "#0b6e4f"},
+        {"label": "Outflow", "amount": as_float(metrics["monthly_spend"]), "color": "#c26d2b"},
+        {"label": "Surplus", "amount": as_float(metrics["monthly_surplus"]), "color": "#355c7d"},
+    ]
+    max_cashflow = max((abs(item["amount"]) for item in income_vs_outflow), default=1) or 1
+    maturity_buckets = [
+        {"label": "0-30 days", "amount": 0.0, "count": 0},
+        {"label": "31-90 days", "amount": 0.0, "count": 0},
+        {"label": "91-180 days", "amount": 0.0, "count": 0},
+        {"label": "180+ days", "amount": 0.0, "count": 0},
+    ]
+    for row in rows["fixed_deposits"]:
+        days = row.get("days_to_mature")
+        if days is None:
+            continue
+        if days <= 30:
+            bucket = maturity_buckets[0]
+        elif days <= 90:
+            bucket = maturity_buckets[1]
+        elif days <= 180:
+            bucket = maturity_buckets[2]
+        else:
+            bucket = maturity_buckets[3]
+        bucket["amount"] += as_float(row.get("current_amount"))
+        bucket["count"] += 1
+    max_maturity_bucket = max((bucket["amount"] for bucket in maturity_buckets), default=1) or 1
+    fd_liquidity_windows = {
+        "30": sum(as_float(row.get("current_amount")) for row in rows["fixed_deposits"] if row.get("days_to_mature") is not None and row["days_to_mature"] <= 30),
+        "90": sum(as_float(row.get("current_amount")) for row in rows["fixed_deposits"] if row.get("days_to_mature") is not None and row["days_to_mature"] <= 90),
+        "180": sum(as_float(row.get("current_amount")) for row in rows["fixed_deposits"] if row.get("days_to_mature") is not None and row["days_to_mature"] <= 180),
+        "365": sum(as_float(row.get("current_amount")) for row in rows["fixed_deposits"] if row.get("days_to_mature") is not None and row["days_to_mature"] <= 365),
+    }
+    monthly_income = as_float(metrics["monthly_income"])
+    monthly_spend = as_float(metrics["monthly_spend"])
+    annual_income = monthly_income * 12
+    annual_outflow = monthly_spend * 12
+    annual_sip = sum(as_float(row.get("sip")) for row in rows["mutual_funds"]) * 12
+    annual_utility = sum(
+        as_float(row.get("amount"))
+        for row in rows["outflows"]
+        if normalize_text(row.get("recipient")).lower() == "utility"
+    ) * 12
+    annual_planned_spend = (monthly_spend * 12) - annual_utility
+    loans_receivable_total = sum(as_float(row.get("amount")) for row in rows["loans_receivable"])
+    loan_obligation_total = sum(as_float(row.get("amount")) for row in rows["loan_obligations"])
+    one_pct_market_move = market_total * 0.01
+    annual_surplus = as_float(metrics["monthly_surplus"]) * 12
+    projected_net_worth_12m = as_float(metrics["net_worth"]) + annual_surplus
+    next_events = []
+    today = datetime.now().date()
+    for row in rows["fixed_deposits"]:
+        event_date = normalize_date_value(row.get("maturity_date"))
+        if event_date and event_date >= today:
+            next_events.append(
+                {
+                    "date": event_date,
+                    "label": f"FD: {row.get('bank_name') or 'Unknown bank'}",
+                    "amount": as_float(row.get("current_amount")),
+                    "type": "Fixed Deposit",
+                }
+            )
+    for row in rows["chits"]:
+        event_date = normalize_date_value(row.get("maturity_date"))
+        if event_date and event_date >= today:
+            next_events.append(
+                {
+                    "date": event_date,
+                    "label": f"Chit: {row.get('label') or 'Unnamed'}",
+                    "amount": as_float(row.get("amount")),
+                    "type": "Chit",
+                }
+            )
+    for row in rows["variable_chit_payments"]:
+        event_date = normalize_date_value(row.get("payment_date"))
+        if event_date and event_date >= today and row.get("actual_paid") is None:
+            next_events.append(
+                {
+                    "date": event_date,
+                    "label": f"Variable chit EMI {row.get('emi_no') or ''}".strip(),
+                    "amount": as_float(row.get("amount")),
+                    "type": "Chit Payment",
+                }
+            )
+    for row in rows["sneha_payments"]:
+        event_date = normalize_date_value(row.get("payment_date"))
+        if event_date and event_date >= today:
+            next_events.append(
+                {
+                    "date": event_date,
+                    "label": "Sneha payment",
+                    "amount": as_float(row.get("amount")),
+                    "type": "Payment",
+                }
+            )
+    next_events = sorted(next_events, key=lambda item: item["date"])
+    largest_future_amount = max((event["amount"] for event in next_events), default=1) or 1
+    next_event = next_events[0] if next_events else None
+    future_cards = [
+        {
+            "label": "12M Income Run-Rate",
+            "value": format_currency(annual_income),
+            "note": "Current monthly income annualized from the earnings section.",
+        },
+        {
+            "label": "12M Outflow Run-Rate",
+            "value": format_currency(annual_outflow),
+            "note": "Spending and utility bills annualized from current rows.",
+        },
+        {
+            "label": "12M SIP Commitment",
+            "value": format_currency(annual_sip),
+            "note": "Mutual fund SIP load projected over the next 12 months.",
+        },
+        {
+            "label": "Projected Net Worth",
+            "value": format_currency(projected_net_worth_12m),
+            "note": "Today net worth plus the current 12-month surplus run-rate.",
+        },
+        {
+            "label": "Next Event",
+            "value": next_event["date"].isoformat() if next_event else "No date",
+            "note": f"{next_event['label']} for {format_currency(next_event['amount'])}." if next_event else "No upcoming dated maturity or payment found.",
+        },
+    ]
+    future_focus = [
+        {"label": "Income", "amount": annual_income, "note": "12M earning run-rate"},
+        {"label": "Spending", "amount": annual_planned_spend, "note": "12M planned spend run-rate"},
+        {"label": "Utilities", "amount": annual_utility, "note": "12M utility run-rate"},
+        {"label": "SIPs", "amount": annual_sip, "note": "12M mutual fund contribution"},
+        {"label": "Receivables", "amount": loans_receivable_total, "note": "Capital expected back"},
+        {"label": "Obligations", "amount": loan_obligation_total, "note": "Capital owed"},
+        {"label": "1% Market Move", "amount": one_pct_market_move, "note": "Sensitivity on stocks and funds"},
+    ]
+    largest_future_focus = max((abs(item["amount"]) for item in future_focus), default=1) or 1
+    attention_cards = [
+        {
+            "label": "Liquidity Runway",
+            "value": f"{liquidity_months:.1f} months",
+            "note": f"Bank and FD coverage against current monthly outflow.",
+        },
+        {
+            "label": "Asset Concentration",
+            "value": f"{percent_of(concentration[0]['amount'], asset_total):.1f}%" if concentration else "0.0%",
+            "note": f"{concentration[0]['label']} is the largest allocation." if concentration else "No allocation data yet.",
+        },
+        {
+            "label": "Near Maturities",
+            "value": str(len(near_maturities)),
+            "note": "Fixed deposits maturing within 180 days.",
+        },
+        {
+            "label": "Outflow Load",
+            "value": f"{percent_of(metrics['monthly_spend'], metrics['monthly_income']):.1f}%",
+            "note": "Monthly outflow as a share of income.",
+        },
+    ]
+
     return {
         "generated_on": datetime.now().strftime("%Y-%m-%d %H:%M"),
         "metrics": metrics,
         "rows": rows,
-        "asset_allocation": [
-            {**item, "share": percent_of(item["amount"], metrics["asset_total"])}
-            for item in metrics["asset_mix"]
-        ],
+        "asset_allocation": allocation,
+        "asset_donut_style": asset_donut_style,
         "income_by_person": group_amount(rows["earnings"], "person"),
         "income_by_type": group_amount(rows["earnings"], "income_type"),
         "outflow_by_person": group_amount(rows["outflows"], "person"),
         "outflow_by_type": group_amount(rows["outflows"], "label"),
+        "investment_rows": investment_rows,
+        "max_investment_move": max_investment_move,
+        "max_outflow": max_outflow,
+        "income_vs_outflow": income_vs_outflow,
+        "max_cashflow": max_cashflow,
+        "liquid_total": liquid_total,
+        "liquidity_months": liquidity_months,
+        "maturity_buckets": maturity_buckets,
+        "max_maturity_bucket": max_maturity_bucket,
+        "attention_cards": attention_cards,
+        "future_cards": future_cards,
+        "future_events": next_events[:10],
+        "largest_future_amount": largest_future_amount,
+        "future_focus": future_focus,
+        "largest_future_focus": largest_future_focus,
+        "fd_liquidity_windows": fd_liquidity_windows,
+        "annual_surplus": annual_surplus,
+        "annual_income": annual_income,
+        "annual_outflow": annual_outflow,
+        "annual_sip": annual_sip,
+        "annual_utility": annual_utility,
+        "annual_planned_spend": annual_planned_spend,
+        "one_pct_market_move": one_pct_market_move,
+        "projected_net_worth_12m": projected_net_worth_12m,
         "investment_summary": {
             "invested_total": invested_total,
             "market_total": market_total,
@@ -1893,12 +2131,13 @@ def clear_manual_stock_holdings():
 
 @app.get("/")
 def dashboard() -> str:
-    return render_template("dashboard.html", metrics=build_dashboard_metrics())
+    report = build_reports_context()
+    return render_template("dashboard.html", metrics=report["metrics"], report=report)
 
 
 @app.get("/reports")
-def reports() -> str:
-    return render_template("reports.html", **build_reports_context())
+def reports():
+    return redirect(url_for("dashboard"))
 
 
 @app.get("/reports/export.csv")

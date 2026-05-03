@@ -157,6 +157,121 @@
         {% endfor %}
       </div>
 
+      <div class="page-visual-grid" style="margin-top:18px; margin-bottom:0;">
+        <article class="card" style="padding:16px;">
+          <div class="eyebrow">Mix</div>
+          <h3 style="margin-top:0;">{{ section.entity.title }} concentration</h3>
+          {% set largest_row = section.rows|sort(attribute=section.total_field, reverse=true)|first %}
+          {% set largest_value = largest_row[section.total_field] if largest_row else 0 %}
+          {% set largest_share = (largest_value / section.total * 100) if section.total else 0 %}
+          <div class="mini-donut" style="background: conic-gradient(var(--accent) 0% {{ largest_share }}%, rgba(31, 41, 51, 0.08) {{ largest_share }}% 100%);">
+            <div><strong>{{ "%.1f"|format(largest_share) }}%</strong><span>largest row</span></div>
+          </div>
+          <div class="kpi-note" style="text-align:center; margin-top:12px;">Largest row share of {{ section.total_label }}.</div>
+        </article>
+        <article class="card" style="padding:16px;">
+          <div class="eyebrow">Rank</div>
+          <h3 style="margin-top:0;">Top contributors</h3>
+          <div class="visual-bars">
+            {% for row in section.rows|sort(attribute=section.total_field, reverse=true) %}
+              {% if loop.index <= 6 %}
+                {% set label_column = section.entity.columns|selectattr("type", "equalto", "text")|first %}
+                {% set label = row[label_column.name] if label_column else ("Row " ~ row.id) %}
+                {% set amount = row[section.total_field] or 0 %}
+                <div class="visual-bar-row">
+                  <span>{{ label or ("Row " ~ row.id) }}</span>
+                  <div><i style="width: {{ (amount / largest_value * 100) if largest_value else 0 }}%"></i></div>
+                  <strong>{{ format_currency(amount) }}</strong>
+                </div>
+              {% endif %}
+            {% else %}
+              <div class="muted">No rows to chart.</div>
+            {% endfor %}
+          </div>
+        </article>
+      </div>
+
+      <section class="card future-panel" style="padding:16px; margin-top:18px;">
+        <div class="eyebrow">Forward View</div>
+        <h3 style="margin-top:0;">{{ section.entity.title }} outlook</h3>
+        {% if section.entity_key == "earnings" %}
+          <div class="status-flow">
+            <div class="status-node"><span>Monthly Income</span><strong>{{ format_currency(section.total) }}</strong></div>
+            <div class="status-link"></div>
+            <div class="status-node"><span>12M Run-Rate</span><strong>{{ format_currency(section.total * 12) }}</strong></div>
+            <div class="status-link"></div>
+            <div class="status-node"><span>Income Lines</span><strong>{{ section.rows|length }}</strong></div>
+          </div>
+        {% elif section.entity_key in ["spending", "utility_bills"] %}
+          <div class="status-flow">
+            <div class="status-node"><span>Monthly Load</span><strong>{{ format_currency(section.total) }}</strong></div>
+            <div class="status-link"></div>
+            <div class="status-node"><span>12M Load</span><strong>{{ format_currency(section.total * 12) }}</strong></div>
+            <div class="status-link"></div>
+            <div class="status-node"><span>Rows</span><strong>{{ section.rows|length }}</strong></div>
+          </div>
+        {% elif section.entity_key == "mutual_funds" %}
+          {% set sip_total = section.rows|sum(attribute='sip') %}
+          <div class="status-flow">
+            <div class="status-node"><span>Current Value</span><strong>{{ format_currency(section.total) }}</strong></div>
+            <div class="status-link"></div>
+            <div class="status-node"><span>12M SIP</span><strong>{{ format_currency(sip_total * 12) }}</strong></div>
+            <div class="status-link"></div>
+            <div class="status-node"><span>Monthly SIP</span><strong>{{ format_currency(sip_total) }}</strong></div>
+          </div>
+        {% elif section.entity_key == "stocks" %}
+          <div class="status-flow">
+            <div class="status-node"><span>Market Value</span><strong>{{ format_currency(section.total) }}</strong></div>
+            <div class="status-link"></div>
+            <div class="status-node"><span>1% Move</span><strong>{{ format_currency(section.total * 0.01) }}</strong></div>
+            <div class="status-link"></div>
+            <div class="status-node"><span>Positions</span><strong>{{ section.rows|length }}</strong></div>
+          </div>
+        {% elif section.entity_key == "fixed_deposits" %}
+          {% set maturing_90 = namespace(amount=0, count=0) %}
+          {% for row in section.rows %}
+            {% if row.days_to_mature is not none and row.days_to_mature <= 90 %}
+              {% set maturing_90.amount = maturing_90.amount + (row.current_amount or 0) %}
+              {% set maturing_90.count = maturing_90.count + 1 %}
+            {% endif %}
+          {% endfor %}
+          <div class="status-flow">
+            <div class="status-node"><span>Current Value</span><strong>{{ format_currency(section.total) }}</strong></div>
+            <div class="status-link"></div>
+            <div class="status-node"><span>90D Maturity</span><strong>{{ format_currency(maturing_90.amount) }}</strong></div>
+            <div class="status-link"></div>
+            <div class="status-node"><span>Count</span><strong>{{ maturing_90.count }}</strong></div>
+          </div>
+        {% elif section.entity_key == "loans" %}
+          {% set receivable = namespace(amount=0, count=0) %}
+          {% set obligation = namespace(amount=0, count=0) %}
+          {% for row in section.rows %}
+            {% if row.amount >= 0 %}
+              {% set receivable.amount = receivable.amount + row.amount %}
+              {% set receivable.count = receivable.count + 1 %}
+            {% else %}
+              {% set obligation.amount = obligation.amount + (row.amount|abs) %}
+              {% set obligation.count = obligation.count + 1 %}
+            {% endif %}
+          {% endfor %}
+          <div class="status-flow">
+            <div class="status-node"><span>Receivable</span><strong>{{ format_currency(receivable.amount) }}</strong></div>
+            <div class="status-link"></div>
+            <div class="status-node"><span>Owed</span><strong>{{ format_currency(obligation.amount) }}</strong></div>
+            <div class="status-link"></div>
+            <div class="status-node"><span>Net</span><strong>{{ format_currency(receivable.amount - obligation.amount) }}</strong></div>
+          </div>
+        {% else %}
+          <div class="status-flow">
+            <div class="status-node"><span>Current</span><strong>{{ format_currency(section.total) }}</strong></div>
+            <div class="status-link"></div>
+            <div class="status-node"><span>12M View</span><strong>{{ format_currency(section.total * 12) }}</strong></div>
+            <div class="status-link"></div>
+            <div class="status-node"><span>Rows</span><strong>{{ section.rows|length }}</strong></div>
+          </div>
+        {% endif %}
+      </section>
+
       <div class="table-wrap hidden" id="{{ section.entity_key }}-panel">
         <table id="{{ section.entity_key }}-table" class="sticky-head" data-total-field="{{ section.total_field }}">
           <thead>

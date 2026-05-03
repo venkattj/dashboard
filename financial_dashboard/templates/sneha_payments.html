@@ -26,15 +26,60 @@
       <div class="kpi-note">Average payment size across the schedule.</div>
     </article>
     <article class="card">
-      <div class="eyebrow">Latest Payment</div>
-      <p class="metric">{% if insights.latest_payment %}{{ insights.latest_payment.payment_date }}{% else %}No data{% endif %}</p>
-      <div class="kpi-note">{% if insights.latest_payment %}{{ format_currency(insights.latest_payment.amount) }} was the latest recorded payment.{% endif %}</div>
-    </article>
-    <article class="card">
       <div class="eyebrow">Known Balance</div>
       <p class="metric">{% if insights.latest_balance %}{{ format_currency(insights.latest_balance.principal_balance) }}{% else %}No data{% endif %}</p>
       <div class="kpi-note">{% if insights.latest_balance %}Last known principal balance from {{ insights.latest_balance.payment_date }}.{% endif %}</div>
     </article>
+  </section>
+
+  <section class="page-visual-grid">
+    <article class="card">
+      <div class="eyebrow">Repayment Flow</div>
+      <h3>Total to current year</h3>
+      {% set year_share = (insights.paid_this_year / insights.total_paid * 100) if insights.total_paid else 0 %}
+      <div class="mini-donut" style="background: conic-gradient(var(--accent) 0% {{ year_share }}%, rgba(31, 41, 51, 0.08) {{ year_share }}% 100%);">
+        <div><strong>{{ "%.1f"|format(year_share) }}%</strong><span>this year</span></div>
+      </div>
+      <div class="status-flow" style="margin-top:18px;">
+        <div class="status-node"><span>Total</span><strong>{{ format_currency(insights.total_paid) }}</strong></div>
+        <div class="status-link"></div>
+        <div class="status-node"><span>This Year</span><strong>{{ format_currency(insights.paid_this_year) }}</strong></div>
+        <div class="status-link"></div>
+        <div class="status-node"><span>Average</span><strong>{{ format_currency(insights.average_payment) }}</strong></div>
+      </div>
+    </article>
+    <article class="card">
+      <div class="eyebrow">Payment Timeline</div>
+      <h3>Recent recorded payments</h3>
+      {% set largest_payment = rows|sort(attribute='amount', reverse=true)|first %}
+      {% set largest_amount = largest_payment.amount if largest_payment else 0 %}
+      <div class="visual-timeline">
+        {% for row in rows|sort(attribute='payment_date', reverse=true) %}
+          {% if loop.index <= 8 %}
+            <div class="visual-timeline-row">
+              <span>{{ row.payment_date }}</span>
+              <div><i style="width: {{ (row.amount / largest_amount * 100) if largest_amount else 0 }}%"></i></div>
+              <strong>{{ format_currency(row.amount) }}</strong>
+            </div>
+          {% endif %}
+        {% else %}
+          <div class="muted">No payments available.</div>
+        {% endfor %}
+      </div>
+    </article>
+  </section>
+
+  <section class="card future-panel">
+    <div class="eyebrow">Forward View</div>
+    <h3>Repayment run-rate</h3>
+    <div class="status-flow">
+      <div class="status-node"><span>Average</span><strong>{{ format_currency(insights.average_payment) }}</strong></div>
+      <div class="status-link"></div>
+      <div class="status-node"><span>Next 6 Rows</span><strong>{{ format_currency(insights.average_payment * 6) }}</strong></div>
+      <div class="status-link"></div>
+      <div class="status-node"><span>Next 12 Rows</span><strong>{{ format_currency(insights.average_payment * 12) }}</strong></div>
+    </div>
+    <div class="kpi-note" style="margin-top:12px;">This uses average recorded payment size as a simple schedule estimate; dated future rows remain visible in the payment grid.</div>
   </section>
 
   <section class="card">
