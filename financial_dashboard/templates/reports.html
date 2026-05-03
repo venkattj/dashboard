@@ -1,0 +1,166 @@
+{% extends "base.html" %}
+
+{% block title %}Reports | Financial Dashboard{% endblock %}
+
+{% block content %}
+  <section class="hero report-cover">
+    <div>
+      <div class="eyebrow">Reports</div>
+      <h2>Financial Snapshot</h2>
+      <p>A clean, printable view of net worth, cash flow, investment performance, upcoming maturities, and the largest movements inside the current dashboard data.</p>
+      <div class="chip-row">
+        <span class="chip">Generated {{ generated_on }}</span>
+        <span class="chip">{{ rows.bank_accounts|length }} bank accounts</span>
+        <span class="chip">{{ rows.stocks|length + rows.mutual_funds|length }} market holdings</span>
+        <span class="chip">{{ rows.fixed_deposits|length }} fixed deposits</span>
+      </div>
+    </div>
+    <div class="actions no-print">
+      <button type="button" onclick="window.print()">Print Report</button>
+      <a class="btn secondary" href="{{ url_for('reports_export_csv') }}">Export CSV</a>
+    </div>
+  </section>
+
+  <section class="grid metrics report-kpis">
+    <article class="card"><div class="eyebrow">Net Worth</div><p class="metric">{{ format_currency(metrics.net_worth) }}</p><div class="kpi-note">Assets after loan obligations.</div></article>
+    <article class="card"><div class="eyebrow">Asset Base</div><p class="metric">{{ format_currency(metrics.asset_total) }}</p><div class="kpi-note">Tracked investable and long-term assets.</div></article>
+    <article class="card"><div class="eyebrow">Monthly Surplus</div><p class="metric">{{ format_currency(metrics.monthly_surplus) }}</p><div class="kpi-note">{{ "%.1f"|format(savings_rate) }}% of income.</div></article>
+    <article class="card"><div class="eyebrow">Investment P&amp;L</div><p class="metric">{{ format_currency(investment_summary.pnl) }}</p><div class="kpi-note">{{ "%.1f"|format(investment_summary.returns_pct) }}% blended return.</div></article>
+  </section>
+
+  <section class="card report-section">
+    <div class="grid-header">
+      <div>
+        <div class="eyebrow">Executive Notes</div>
+        <h3 style="margin:0;">What stands out</h3>
+      </div>
+    </div>
+    <div class="report-notes">
+      {% for note in report_notes %}
+        <p>{{ note }}</p>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="split report-section">
+    <article class="card">
+      <div class="eyebrow">Asset Allocation</div>
+      <h3>Where the money sits</h3>
+      <div class="progress">
+        {% for item in asset_allocation %}
+          <div class="progress-row report-progress">
+            <strong>{{ item.label }}</strong>
+            <div class="bar"><span style="width: {{ item.share }}%"></span></div>
+            <span>{{ format_currency(item.amount) }} <small>{{ "%.1f"|format(item.share) }}%</small></span>
+          </div>
+        {% endfor %}
+      </div>
+    </article>
+    <article class="card">
+      <div class="eyebrow">Cash Flow</div>
+      <h3>Income minus outflow</h3>
+      <div class="report-ledger">
+        <div><span>Monthly income</span><strong>{{ format_currency(metrics.monthly_income) }}</strong></div>
+        <div><span>Monthly spending and bills</span><strong>{{ format_currency(metrics.monthly_spend) }}</strong></div>
+        <div><span>Monthly surplus</span><strong>{{ format_currency(metrics.monthly_surplus) }}</strong></div>
+        <div><span>Loan obligations</span><strong>{{ format_currency(metrics.loan_obligations) }}</strong></div>
+      </div>
+    </article>
+  </section>
+
+  <section class="split report-section">
+    <article class="card">
+      <div class="eyebrow">Income Mix</div>
+      <h3>By person</h3>
+      <div class="table-wrap report-table">
+        <table>
+          <thead><tr><th>Person</th><th>Amount</th></tr></thead>
+          <tbody>
+            {% for row in income_by_person %}
+              <tr><td>{{ row.label }}</td><td>{{ format_currency(row.amount) }}</td></tr>
+            {% else %}
+              <tr><td colspan="2">No income data available.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </article>
+    <article class="card">
+      <div class="eyebrow">Outflow Mix</div>
+      <h3>Largest categories</h3>
+      <div class="table-wrap report-table">
+        <table>
+          <thead><tr><th>Category</th><th>Amount</th></tr></thead>
+          <tbody>
+            {% for row in outflow_by_type[:8] %}
+              <tr><td>{{ row.label }}</td><td>{{ format_currency(row.amount) }}</td></tr>
+            {% else %}
+              <tr><td colspan="2">No outflow data available.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </article>
+  </section>
+
+  <section class="card report-section">
+    <div class="grid-header">
+      <div>
+        <div class="eyebrow">Investment Performance</div>
+        <h3 style="margin:0;">Stocks and mutual funds</h3>
+        <div class="kpi-note">Invested {{ format_currency(investment_summary.invested_total) }} against current value {{ format_currency(investment_summary.market_total) }}.</div>
+      </div>
+    </div>
+    <div class="table-wrap report-table">
+      <table>
+        <thead><tr><th>Holding</th><th>Type</th><th>Invested</th><th>Current</th><th>P&amp;L</th><th>Return</th></tr></thead>
+        <tbody>
+          {% for row in rows.stocks[:10] %}
+            <tr><td>{{ row.symbol }}</td><td>Stock</td><td>{{ format_currency(row.invested_value) }}</td><td>{{ format_currency(row.market_value) }}</td><td>{{ format_currency(row.pnl) }}</td><td>{{ "%.1f"|format(row.returns_pct) }}%</td></tr>
+          {% endfor %}
+          {% for row in rows.mutual_funds[:10] %}
+            <tr><td>{{ row.fund_name }}</td><td>Mutual Fund</td><td>{{ format_currency(row.invested_value) }}</td><td>{{ format_currency(row.current_value) }}</td><td>{{ format_currency(row.pnl) }}</td><td>{{ "%.1f"|format(row.returns_pct) }}%</td></tr>
+          {% endfor %}
+          {% if not rows.stocks and not rows.mutual_funds %}
+            <tr><td colspan="6">No market investment data available.</td></tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="split report-section">
+    <article class="card">
+      <div class="eyebrow">Maturity Calendar</div>
+      <h3>Next 180 days</h3>
+      <div class="table-wrap report-table">
+        <table>
+          <thead><tr><th>Account</th><th>Maturity</th><th>Days</th><th>Amount</th></tr></thead>
+          <tbody>
+            {% for row in near_maturities %}
+              <tr><td>{{ row.account_holder or "Unknown" }} / {{ row.bank_name or "Unknown" }}</td><td>{{ row.maturity_date }}</td><td>{{ row.days_to_mature }}</td><td>{{ format_currency(row.current_amount) }}</td></tr>
+            {% else %}
+              <tr><td colspan="4">No fixed deposits mature within 180 days.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </article>
+    <article class="card">
+      <div class="eyebrow">Cash Concentration</div>
+      <h3>Highest balances</h3>
+      <div class="table-wrap report-table">
+        <table>
+          <thead><tr><th>Holder</th><th>Bank</th><th>Balance</th></tr></thead>
+          <tbody>
+            {% for row in rows.bank_accounts[:8] %}
+              <tr><td>{{ row.account_holder or "Unknown" }}</td><td>{{ row.bank_name or "Unknown" }}</td><td>{{ format_currency(row.balance) }}</td></tr>
+            {% else %}
+              <tr><td colspan="3">No bank account data available.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </article>
+  </section>
+{% endblock %}

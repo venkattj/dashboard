@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import hashlib
+import csv
 import json
 import threading
 import zipfile
 import os
 from datetime import datetime, timedelta
-from io import BytesIO
+from io import BytesIO, StringIO
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
@@ -82,7 +83,7 @@ ENTITY_CONFIG = {
         "description": "Track maturity dates, invested principal, and current value.",
         "table": "fixed_deposits",
         "columns": [
-            {"name": "account_id", "label": "Account ID", "type": "number", "step": "1"},
+            {"name": "account_id", "label": "Account (holder · bank)", "type": "number", "step": "1"},
             {"name": "invested", "label": "Invested", "type": "number", "step": "0.01"},
             {"name": "interest_rate", "label": "Interest Rate %", "type": "number", "step": "0.01"},
             {"name": "maturity_date", "label": "Maturity Date", "type": "date"},
@@ -1324,6 +1325,181 @@ def build_dashboard_metrics() -> dict[str, Any]:
     }
 
 
+def percent_of(part: float, whole: float) -> float:
+    return (part / whole * 100) if whole else 0.0
+
+
+def build_report_rows() -> dict[str, list[dict[str, Any]]]:
+    today = datetime.now().date()
+    fixed_deposits = fetch_all(
+        """
+        SELECT
+            fd.*,
+            u.full_name AS account_holder,
+            b.name AS bank_name,
+            ba.purpose AS account_purpose
+        FROM fixed_deposits fd
+        LEFT JOIN bank_accounts ba ON ba.id = fd.account_id
+        LEFT JOIN users u ON u.id = ba.user_id
+        LEFT JOIN banks b ON b.id = ba.bank_id
+        ORDER BY fd.maturity_date ASC, fd.invested DESC
+        """
+    )
+    for row in fixed_deposits:
+        row["current_amount"] = compute_fixed_deposit_current_amount(row, as_float, today)
+        row["days_to_mature"] = compute_fixed_deposit_days_to_mature(row, today)
+
+    stocks = fetch_all(
+        """
+        SELECT symbol, exchange, average_price, current_price, quantity, source, last_synced_price_at
+        FROM stocks
+        ORDER BY current_price * quantity DESC, symbol ASC
+        """
+    )
+    for row in stocks:
+        row["invested_value"] = as_float(row.get("average_price")) * as_float(row.get("quantity"))
+        row["market_value"] = as_float(row.get("current_price")) * as_float(row.get("quantity"))
+        row["pnl"] = row["market_value"] - row["invested_value"]
+        row["returns_pct"] = percent_of(row["pnl"], row["invested_value"])
+
+    mutual_funds = fetch_all("SELECT * FROM mutual_funds ORDER BY latest_nav * units DESC, fund_name ASC")
+    for row in mutual_funds:
+        invested_value = as_float(row.get("average_nav")) * as_float(row.get("units"))
+        current_value = as_float(row.get("latest_nav")) * as_float(row.get("units"))
+        row["invested_value"] = invested_value
+        row["current_value"] = current_value
+        row["pnl"] = current_value - invested_value
+        row["returns_pct"] = percent_of(row["pnl"], invested_value)
+
+    spending = fetch_all("SELECT spending_type AS label, person, recipient, amount FROM spending ORDER BY amount DESC")
+    utilities = fetch_all("SELECT bill_type AS label, '' AS person, 'Utility' AS recipient, amount FROM utility_bills ORDER BY amount DESC")
+
+    return {
+        "bank_accounts": fetch_all(
+            """
+            SELECT u.full_name AS account_holder, b.name AS bank_name, ba.balance, ba.purpose
+            FROM bank_accounts ba
+            LEFT JOIN users u ON u.id = ba.user_id
+            LEFT JOIN banks b ON b.id = ba.bank_id
+            ORDER BY ba.balance DESC
+            """
+        ),
+        "fixed_deposits": fixed_deposits,
+        "stocks": stocks,
+        "mutual_funds": mutual_funds,
+        "earnings": fetch_all("SELECT income_type, amount, person, source FROM earnings ORDER BY amount DESC"),
+        "outflows": [*spending, *utilities],
+        "loans_receivable": fetch_all("SELECT borrower, amount, interest_rate FROM loans WHERE amount > 0 ORDER BY amount DESC"),
+        "loan_obligations": fetch_all("SELECT borrower, ABS(amount) AS amount, interest_rate FROM loans WHERE amount < 0 ORDER BY ABS(amount) DESC"),
+        "chits": fetch_all(
+            """
+            SELECT organization AS label, current_value AS amount, maturity_date, emi, note
+            FROM standard_chits
+            UNION ALL
+            SELECT name AS label, net_value AS amount, maturity_date, total_paid AS emi, '' AS note
+            FROM variable_chits
+            ORDER BY amount DESC
+            """
+        ),
+        "overall_assets": fetch_all("SELECT label, amount, note FROM overall_assets ORDER BY amount DESC"),
+    }
+
+
+def group_amount(rows: list[dict[str, Any]], key: str, amount_key: str = "amount") -> list[dict[str, Any]]:
+    totals: dict[str, float] = {}
+    for row in rows:
+        label = normalize_text(row.get(key)) or "Unassigned"
+        totals[label] = totals.get(label, 0.0) + as_float(row.get(amount_key))
+    return [
+        {"label": label, "amount": amount}
+        for label, amount in sorted(totals.items(), key=lambda item: item[1], reverse=True)
+    ]
+
+
+def build_reports_context() -> dict[str, Any]:
+    metrics = build_dashboard_metrics()
+    rows = build_report_rows()
+    investments = [*rows["stocks"], *rows["mutual_funds"]]
+    invested_total = sum(as_float(row.get("invested_value")) for row in investments)
+    market_total = sum(as_float(row.get("market_value", row.get("current_value"))) for row in investments)
+    outflow_total = sum(as_float(row.get("amount")) for row in rows["outflows"])
+    savings_rate = percent_of(metrics["monthly_surplus"], metrics["monthly_income"])
+    near_maturities = [
+        row for row in rows["fixed_deposits"]
+        if row.get("days_to_mature") is not None and 0 <= row["days_to_mature"] <= 180
+    ]
+    concentration = sorted(metrics["asset_mix"], key=lambda item: item["amount"], reverse=True)
+
+    report_notes = []
+    if concentration:
+        report_notes.append(
+            f"{concentration[0]['label']} is the largest asset class at {percent_of(concentration[0]['amount'], metrics['asset_total']):.1f}% of tracked assets."
+        )
+    if savings_rate >= 0:
+        report_notes.append(f"Monthly surplus is {savings_rate:.1f}% of monthly income.")
+    else:
+        report_notes.append(f"Monthly outflow exceeds income by {format_currency(abs(metrics['monthly_surplus']))}.")
+    if near_maturities:
+        report_notes.append(f"{len(near_maturities)} fixed deposit(s) mature within the next 180 days.")
+    if market_total or invested_total:
+        report_notes.append(f"Market investments show {format_currency(market_total - invested_total)} total P&L.")
+
+    return {
+        "generated_on": datetime.now().strftime("%Y-%m-%d %H:%M"),
+        "metrics": metrics,
+        "rows": rows,
+        "asset_allocation": [
+            {**item, "share": percent_of(item["amount"], metrics["asset_total"])}
+            for item in metrics["asset_mix"]
+        ],
+        "income_by_person": group_amount(rows["earnings"], "person"),
+        "income_by_type": group_amount(rows["earnings"], "income_type"),
+        "outflow_by_person": group_amount(rows["outflows"], "person"),
+        "outflow_by_type": group_amount(rows["outflows"], "label"),
+        "investment_summary": {
+            "invested_total": invested_total,
+            "market_total": market_total,
+            "pnl": market_total - invested_total,
+            "returns_pct": percent_of(market_total - invested_total, invested_total),
+        },
+        "outflow_total": outflow_total,
+        "savings_rate": savings_rate,
+        "near_maturities": near_maturities[:10],
+        "report_notes": report_notes,
+    }
+
+
+def build_reports_csv(context: dict[str, Any]) -> BytesIO:
+    text_buffer = StringIO()
+    writer = csv.writer(text_buffer)
+    writer.writerow(["Report", "Generated", context["generated_on"]])
+    writer.writerow([])
+    writer.writerow(["Metric", "Value"])
+    for label, value in [
+        ("Net Worth", context["metrics"]["net_worth"]),
+        ("Asset Base", context["metrics"]["asset_total"]),
+        ("Monthly Income", context["metrics"]["monthly_income"]),
+        ("Monthly Outflow", context["metrics"]["monthly_spend"]),
+        ("Monthly Surplus", context["metrics"]["monthly_surplus"]),
+        ("Loan Obligations", context["metrics"]["loan_obligations"]),
+    ]:
+        writer.writerow([label, value])
+    writer.writerow([])
+    writer.writerow(["Asset Class", "Amount", "Share %"])
+    for item in context["asset_allocation"]:
+        writer.writerow([item["label"], item["amount"], f"{item['share']:.2f}"])
+    writer.writerow([])
+    writer.writerow(["Investment", "Type", "Invested", "Current", "P&L", "Return %"])
+    for row in context["rows"]["stocks"]:
+        writer.writerow([row["symbol"], "Stock", row["invested_value"], row["market_value"], row["pnl"], f"{row['returns_pct']:.2f}"])
+    for row in context["rows"]["mutual_funds"]:
+        writer.writerow([row["fund_name"], "Mutual Fund", row["invested_value"], row["current_value"], row["pnl"], f"{row['returns_pct']:.2f}"])
+
+    payload = BytesIO(text_buffer.getvalue().encode("utf-8-sig"))
+    payload.seek(0)
+    return payload
+
+
 def serialize_form(entity_key: str, form_data: Any) -> dict[str, Any]:
     if entity_key == "bank_accounts":
         return {
@@ -1720,6 +1896,23 @@ def dashboard() -> str:
     return render_template("dashboard.html", metrics=build_dashboard_metrics())
 
 
+@app.get("/reports")
+def reports() -> str:
+    return render_template("reports.html", **build_reports_context())
+
+
+@app.get("/reports/export.csv")
+def reports_export_csv():
+    report = build_reports_csv(build_reports_context())
+    date_tag = datetime.now().strftime("%Y-%m-%d")
+    return send_file(
+        report,
+        as_attachment=True,
+        download_name=f"financial_report_{date_tag}.csv",
+        mimetype="text/csv",
+    )
+
+
 @app.post("/reload")
 def reload_data():
     workbook_file = request.files.get("workbook")
@@ -1772,7 +1965,19 @@ def entity_list(entity_key: str) -> str:
         query += " ORDER BY ba.id DESC"
         rows = fetch_all(query, params)
     else:
-        query = f"SELECT * FROM {entity['table']}"
+        if entity_key == "fixed_deposits":
+            query = """
+            SELECT
+                fd.*,
+                u.full_name AS account_holder,
+                b.name AS bank_name
+            FROM fixed_deposits fd
+            LEFT JOIN bank_accounts ba ON ba.id = fd.account_id
+            LEFT JOIN users u ON u.id = ba.user_id
+            LEFT JOIN banks b ON b.id = ba.bank_id
+            """
+        else:
+            query = f"SELECT * FROM {entity['table']}"
         params = ()
         filters = []
         if search:

@@ -192,12 +192,26 @@
                   <form id="{{ section.entity_key }}-row-{{ row.id }}" method="post" action="{{ url_for('entity_inline_update', entity_key=section.entity_key, row_id=row.id) }}"></form>
                 </td>
                 {% for column in section.entity.columns %}
-                  <td>
-                    <span class="cell-view">
+                <td>
+                  <span class="cell-view">
+                    {% if section.entity_key == "fixed_deposits" and column.name == "account_id" %}
+                      {% set holder = row.account_holder %}
+                      {% set bank = row.bank_name %}
+                      {% if holder and bank %}
+                        {{ holder }} · {{ bank }}
+                      {% elif holder %}
+                        {{ holder }}
+                      {% elif bank %}
+                        {{ bank }}
+                      {% else %}
+                        Account info unavailable
+                      {% endif %}
+                    {% else %}
                       {{ format_cell(row[column.name], column) }}
-                    </span>
-                    <input class="table-input hidden" type="{{ column.type }}" name="{{ column.name }}" step="{{ column.step or 'any' }}" value="{{ row[column.name] if row[column.name] is not none else '' }}" form="{{ section.entity_key }}-row-{{ row.id }}" {% if column.type == 'text' %}maxlength="255"{% endif %}>
-                  </td>
+                    {% endif %}
+                  </span>
+                  <input class="table-input hidden" type="{{ column.type }}" name="{{ column.name }}" step="{{ column.step or 'any' }}" value="{{ row[column.name] if row[column.name] is not none else '' }}" form="{{ section.entity_key }}-row-{{ row.id }}" {% if column.type == 'text' %}maxlength="255"{% endif %}>
+                </td>
                 {% endfor %}
                 <td>
                   <div class="table-actions">

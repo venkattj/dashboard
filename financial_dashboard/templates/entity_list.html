@@ -119,7 +119,19 @@
               {% for column in entity.columns %}
                 <td>
                   <span class="cell-view">
-                    {% if column.type == 'number' %}
+                    {% if entity_key == "fixed_deposits" and column.name == "account_id" %}
+                      {% set holder = row.account_holder %}
+                      {% set bank = row.bank_name %}
+                      {% if holder and bank %}
+                        {{ holder }} · {{ bank }}
+                      {% elif holder %}
+                        {{ holder }}
+                      {% elif bank %}
+                        {{ bank }}
+                      {% else %}
+                        Account info unavailable
+                      {% endif %}
+                    {% elif column.type == 'number' %}
                       {{ format_number(row[column.name]) }}
                     {% else %}
                       {{ row[column.name] or 'Unassigned' }}
