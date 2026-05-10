@@ -1,0 +1,30 @@
+{% if prediction %}
+  <section class="card prediction-panel">
+    <div class="prediction-grid">
+      <div class="prediction-summary">
+        <div>
+          <div class="eyebrow">Prediction Graph</div>
+          <h3 style="margin:0;">{{ prediction.title }}</h3>
+          <p class="prediction-caption">{{ prediction.note }}</p>
+        </div>
+        <div>
+          <div class="eyebrow">12M Change</div>
+          <p class="metric prediction-delta">{{ format_currency(prediction.delta) }}</p>
+          <div class="kpi-note">Projected value: {{ format_currency(prediction.projected_value) }}</div>
+        </div>
+      </div>
+      <div>
+        <div class="prediction-chart">
+          {% for point in prediction.points %}
+            <div class="prediction-point">
+              <div class="prediction-bar" style="height: {{ point.height }}%;"></div>
+              <strong>{{ format_currency(point.amount) }}</strong>
+              <span>{{ point.label }}</span>
+            </div>
+          {% endfor %}
+        </div>
+        <p class="prediction-caption">Built from current dashboard rows; update the table or workbook to refresh this scenario.</p>
+      </div>
+    </div>
+  </section>
+{% endif %}

@@ -5,6 +5,11 @@ from typing import Any, Callable
 
 from flask import render_template
 
+try:
+    from .predictions import build_entity_prediction, build_prediction_graph
+except ImportError:
+    from routes.predictions import build_entity_prediction, build_prediction_graph
+
 
 def _days_until(target: Any) -> int | None:
     if not target:
@@ -97,11 +102,24 @@ def build_chits_page_context(
         reverse=True,
     )
     largest_exposure = concentration[0]["exposure_value"] if concentration else 1
+    monthly_commitment = total_standard_emi + sum(
+        (as_float(row["total_paid"]) / as_int(row["emi_paid"])) if as_int(row["emi_paid"]) else 0
+        for row in variable_enriched
+    )
 
     return {
         "standard_rows": standard_enriched,
         "variable_rows": variable_enriched,
         "payment_rows": payment_enriched,
+        "prediction": build_prediction_graph(
+            "Chit Cashflow Prediction",
+            "Cumulative chit commitment from standard EMIs plus average variable EMI paid so far.",
+            monthly_delta=monthly_commitment,
+            cumulative=True,
+        ),
+        "standard_prediction": build_entity_prediction("standard_chits", standard_enriched, total_standard_current, as_float),
+        "variable_prediction": build_entity_prediction("variable_chits", variable_enriched, total_variable_net, as_float),
+        "payment_prediction": build_entity_prediction("variable_chit_payments", payment_enriched, pending_payment_total, as_float),
         "insights": {
             "standard_count": len(standard_enriched),
             "variable_count": len(variable_enriched),

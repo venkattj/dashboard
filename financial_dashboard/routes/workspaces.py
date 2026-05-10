@@ -3,6 +3,11 @@ from __future__ import annotations
 from datetime import date, datetime
 from typing import Any, Callable
 
+try:
+    from .predictions import build_entity_prediction
+except ImportError:
+    from routes.predictions import build_entity_prediction
+
 
 def _section(
     entity_key: str,
@@ -22,6 +27,17 @@ def _section(
         "total_field": total_field,
         "highlights": highlights,
     }
+
+
+def _with_predictions(sections: list[dict[str, Any]], as_float: Callable[[Any], float]) -> list[dict[str, Any]]:
+    for section in sections:
+        section["prediction"] = build_entity_prediction(
+            section["entity_key"],
+            section["rows"],
+            as_float(section["total"]),
+            as_float,
+        )
+    return sections
 
 
 def _stock_returns_pct(row: dict[str, Any], as_float: Callable[[Any], float]) -> float:
@@ -159,6 +175,16 @@ def build_banking_workspace(
     maturing_90 = sum(
         1 for row in fd_rows if row.get("days_to_mature") is not None and 0 <= row["days_to_mature"] <= 90
     )
+    maturing_30_amount = sum(
+        as_float(row["current_amount"])
+        for row in fd_rows
+        if row.get("days_to_mature") is not None and 0 <= row["days_to_mature"] <= 30
+    )
+    maturing_90_amount = sum(
+        as_float(row["current_amount"])
+        for row in fd_rows
+        if row.get("days_to_mature") is not None and 0 <= row["days_to_mature"] <= 90
+    )
     top_account = max(bank_rows, key=lambda row: as_float(row["balance"]), default=None)
     top_fd = max(fd_rows, key=lambda row: as_float(row["current_amount"]), default=None)
     next_maturity = min(
@@ -212,7 +238,7 @@ def build_banking_workspace(
             {"label": "Total Treasury", "value": bank_total + fd_total, "note": f"Liquidity mix is {liquidity_ratio:,.1f}% bank balance and {100 - liquidity_ratio:,.1f}% fixed deposits."},
             {"label": "Locked-In Gain", "value": fd_total - fd_invested, "note": f"Weighted FD rate is {weighted_fd_rate:,.2f}% with {maturing_90} deposits due inside 90 days."},
         ],
-        "sections": [
+        "sections": _with_predictions([
             _section(
                 "bank_accounts",
                 entity_config,
@@ -235,9 +261,8 @@ def build_banking_workspace(
                 "visible FD value",
                 "current_amount",
                 [
-                    {"label": "Top FD", "value": top_fd["account_label"] if top_fd else "No data", "note": f"Rs. {as_float(top_fd['current_amount']):,.2f}" if top_fd else "No FD records available."},
                     {
-                        "label": "Next maturity",
+                        "label": "Next renewal FD",
                         "value": next_maturity["account_label"] if next_maturity else "No data",
                         "note": (
                             f"{next_maturity['days_to_mature']} days left · matures on {next_maturity['maturity_date']}"
@@ -245,11 +270,12 @@ def build_banking_workspace(
                             else "No active FD maturities available."
                         ),
                     },
-                    {"label": "Average rate", "value": f"{average_fd_rate:,.2f}%", "note": f"Simple average across {len(fd_rows)} deposits."},
-                    {"label": "Largest linked account", "value": top_fd_account_name, "note": f"Rs. {top_fd_account_total:,.2f} total FD value linked to this operating account."},
+                    {"label": "Due in 30 days", "value": f"Rs. {maturing_30_amount:,.2f}", "note": f"{maturing_30} deposit{'s' if maturing_30 != 1 else ''} available for renewal or withdrawal."},
+                    {"label": "Due in 90 days", "value": f"Rs. {maturing_90_amount:,.2f}", "note": f"{maturing_90} deposit{'s' if maturing_90 != 1 else ''} mature inside the next quarter."},
+                    {"label": "Weighted rate", "value": f"{weighted_fd_rate:,.2f}%", "note": f"Locked-in gain is Rs. {fd_total - fd_invested:,.2f} across {len(fd_rows)} deposits."},
                 ],
             ),
-        ],
+        ], as_float),
         "nav_key": "bank_accounts",
     }
 
@@ -259,6 +285,7 @@ def build_markets_workspace(
     fetch_all: Callable[..., list],
     as_float: Callable[[Any], float],
     mutual_fund_rows: list[dict[str, Any]] | None = None,
+    focus: str = "all",
 ) -> dict[str, Any]:
     stock_rows = fetch_all("SELECT * FROM stocks ORDER BY current_price * quantity DESC, id DESC")
     mf_rows = mutual_fund_rows if mutual_fund_rows is not None else fetch_all(
@@ -301,60 +328,104 @@ def build_markets_workspace(
         key=lambda row: as_float(row["current_value"]) - _mutual_fund_invested(row, as_float),
         default=None,
     )
+    stock_section = _section(
+        "stocks",
+        entity_config,
+        enriched_stock_rows,
+        stock_current,
+        "visible stock value",
+        "market_value",
+        [
+            {"label": "Positions", "value": len(enriched_stock_rows), "note": "Tracked direct equity positions."},
+            {"label": "Best stock", "value": best_stock["symbol"] if best_stock else "No data", "note": f"Rs. {((as_float(best_stock['current_price']) - as_float(best_stock['average_price'])) * as_float(best_stock['quantity'])):,.2f} P&L" if best_stock else "No stock records available."},
+            {"label": "Direct gain", "value": f"Rs. {stock_current - stock_cost:,.2f}", "note": "Current stock value minus cost."},
+        ],
+    )
+    mutual_fund_section = _section(
+        "mutual_funds",
+        entity_config,
+        enriched_mf_rows,
+        mf_current,
+        "visible mutual fund value",
+        "current_value",
+        [
+            {"label": "Funds", "value": len(enriched_mf_rows), "note": "Tracked mutual fund positions."},
+            {
+                "label": "Top fund",
+                "value": best_fund["fund_name"] if best_fund else "No data",
+                "note": (
+                    f"Rs. {(as_float(best_fund['current_value']) - _mutual_fund_invested(best_fund, as_float)):,.2f} gain"
+                    if best_fund
+                    else "No fund records available."
+                ),
+            },
+            {"label": "SIP load", "value": f"Rs. {total_sip:,.2f}", "note": "Recurring monthly contribution."},
+        ],
+    )
 
-    return {
-        "page_title": "Stocks & Mutual Funds",
-        "eyebrow": "Market Workspace",
-        "heading": "Track direct equity and mutual funds together from one combined investment view.",
-        "description": "This workspace brings listed holdings and mutual funds together so you can compare exposure, portfolio growth, and recurring SIP load in a single place.",
-        "chips": [
+    if focus == "stocks":
+        page_title = "Stocks"
+        eyebrow = "Stocks Workspace"
+        heading = "Track direct equity holdings and sync stock positions from Zerodha."
+        description = "This focused view keeps stock positions, broker sync, current value, and market sensitivity together without duplicating the mutual fund page."
+        chips = [
+            {"label": f"{len(stock_rows)} stock positions"},
+            {"label": f"Rs. {stock_current:,.2f} market value"},
+            {"label": f"Rs. {stock_current - stock_cost:,.2f} direct P&L"},
+        ]
+        metrics = [
+            {"label": "Stocks Value", "value": stock_current, "note": "Current value across direct equity positions."},
+            {"label": "Invested Cost", "value": stock_cost, "note": "Average price multiplied by quantity."},
+            {"label": "Direct Gain", "value": stock_current - stock_cost, "note": "Current stock value minus cost."},
+        ]
+        sections = [stock_section]
+        nav_key = "stocks"
+    elif focus == "mutual_funds":
+        page_title = "Mutual Funds"
+        eyebrow = "Fund Workspace"
+        heading = "Track mutual fund value, returns, SIP load, and NAV refreshes in one focused view."
+        description = "This page stays dedicated to mutual funds so NAV sync and fund projections do not duplicate the stocks workspace."
+        chips = [
+            {"label": f"{len(enriched_mf_rows)} mutual funds"},
+            {"label": f"Rs. {mf_current:,.2f} current value"},
+            {"label": f"Rs. {total_sip:,.2f} SIP load"},
+        ]
+        metrics = [
+            {"label": "Mutual Funds Value", "value": mf_current, "note": "Current value across mutual funds."},
+            {"label": "Invested Cost", "value": mf_invested, "note": "Invested value from amount invested or average NAV times units."},
+            {"label": "Fund Gain", "value": mf_current - mf_invested, "note": "Current value minus invested capital."},
+            {"label": "Monthly SIP", "value": total_sip, "note": "Recurring monthly contribution across funds."},
+        ]
+        sections = [mutual_fund_section]
+        nav_key = "mutual_funds"
+    else:
+        page_title = "Stocks & Mutual Funds"
+        eyebrow = "Market Workspace"
+        heading = "Track direct equity and mutual funds together from one combined investment view."
+        description = "This workspace brings listed holdings and mutual funds together so you can compare exposure, portfolio growth, and recurring SIP load in a single place."
+        chips = [
             {"label": f"{len(stock_rows)} stock positions"},
             {"label": f"{len(enriched_mf_rows)} mutual funds"},
             {"label": f"Rs. {total_sip:,.2f} SIP load"},
-        ],
-        "metrics": [
+        ]
+        metrics = [
             {"label": "Stocks Value", "value": stock_current, "note": "Current value across direct equity positions."},
             {"label": "Mutual Funds Value", "value": mf_current, "note": "Current value across mutual funds."},
             {"label": "Combined Market Value", "value": stock_current + mf_current, "note": "Direct plus managed market exposure."},
             {"label": "Combined Gain", "value": (stock_current - stock_cost) + (mf_current - mf_invested), "note": "Current value minus invested capital."},
-        ],
-        "sections": [
-            _section(
-                "stocks",
-                entity_config,
-                enriched_stock_rows,
-                stock_current,
-                "visible stock value",
-                "market_value",
-                [
-                    {"label": "Positions", "value": len(enriched_stock_rows), "note": "Tracked direct equity positions."},
-                    {"label": "Best stock", "value": best_stock["symbol"] if best_stock else "No data", "note": f"Rs. {((as_float(best_stock['current_price']) - as_float(best_stock['average_price'])) * as_float(best_stock['quantity'])):,.2f} P&L" if best_stock else "No stock records available."},
-                    {"label": "Direct gain", "value": f"Rs. {stock_current - stock_cost:,.2f}", "note": "Current stock value minus cost."},
-                ],
-            ),
-            _section(
-                "mutual_funds",
-                entity_config,
-                enriched_mf_rows,
-                mf_current,
-                "visible mutual fund value",
-                "current_value",
-                [
-                    {"label": "Funds", "value": len(enriched_mf_rows), "note": "Tracked mutual fund positions."},
-                    {
-                        "label": "Top fund",
-                        "value": best_fund["fund_name"] if best_fund else "No data",
-                        "note": (
-                            f"Rs. {(as_float(best_fund['current_value']) - _mutual_fund_invested(best_fund, as_float)):,.2f} gain"
-                            if best_fund
-                            else "No fund records available."
-                        ),
-                    },
-                    {"label": "SIP load", "value": f"Rs. {total_sip:,.2f}", "note": "Recurring monthly contribution."},
-                ],
-            ),
-        ],
-        "nav_key": "stocks",
+        ]
+        sections = [stock_section, mutual_fund_section]
+        nav_key = "stocks"
+
+    return {
+        "page_title": page_title,
+        "eyebrow": eyebrow,
+        "heading": heading,
+        "description": description,
+        "chips": chips,
+        "metrics": metrics,
+        "sections": _with_predictions(sections, as_float),
+        "nav_key": nav_key,
     }
 
 
@@ -389,7 +460,7 @@ def build_outflows_workspace(
             {"label": "Combined Outflow", "value": spending_total + utility_total, "note": "Total burden across both groups."},
             {"label": "Essential Bills", "value": essential_total, "note": f"{(essential_total / utility_total * 100):,.2f}% of utility spend." if utility_total else "No utility data yet."},
         ],
-        "sections": [
+        "sections": _with_predictions([
             _section(
                 "spending",
                 entity_config,
@@ -416,7 +487,7 @@ def build_outflows_workspace(
                     {"label": "Bill types", "value": len({row['bill_type'] for row in utility_rows}), "note": "Distinct bill categories tracked."},
                 ],
             ),
-        ],
+        ], as_float),
         "nav_key": "spending",
     }
 
@@ -451,7 +522,7 @@ def build_capital_workspace(
             {"label": "Net Capital", "value": receivables - liabilities, "note": "Receivables minus liabilities."},
             {"label": "Earnings Total", "value": earnings_total, "note": "Recurring income across all sources."},
         ],
-        "sections": [
+        "sections": _with_predictions([
             _section(
                 "loans",
                 entity_config,
@@ -478,6 +549,6 @@ def build_capital_workspace(
                     {"label": "Average income", "value": f"Rs. {(earnings_total / len(earnings_rows)):,.2f}" if earnings_rows else "Rs. 0.00", "note": "Average earning row amount."},
                 ],
             ),
-        ],
+        ], as_float),
         "nav_key": "loans",
     }

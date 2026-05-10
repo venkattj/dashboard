@@ -6,12 +6,12 @@
   <title>{% block title %}Financial Dashboard{% endblock %}</title>
   <style>
     :root {
-      --bg: #f4efe6;
-      --panel: rgba(255, 252, 247, 0.86);
-      --panel-strong: #fffaf2;
+      --bg: #f6f7f4;
+      --panel: rgba(255, 255, 252, 0.9);
+      --panel-strong: #ffffff;
       --text: #1f2933;
       --muted: #67727e;
-      --line: rgba(130, 110, 88, 0.18);
+      --line: rgba(50, 64, 72, 0.16);
       --accent: #0b6e4f;
       --accent-soft: rgba(11, 110, 79, 0.12);
       --accent-2: #c26d2b;
@@ -25,9 +25,9 @@
       font-family: Georgia, "Times New Roman", serif;
       color: var(--text);
       background:
-        radial-gradient(circle at top left, rgba(194, 109, 43, 0.18), transparent 24%),
-        radial-gradient(circle at top right, rgba(11, 110, 79, 0.18), transparent 28%),
-        linear-gradient(180deg, #f8f4ec 0%, #efe8dc 100%);
+        linear-gradient(135deg, rgba(11, 110, 79, 0.08), transparent 34%),
+        linear-gradient(225deg, rgba(53, 92, 125, 0.1), transparent 38%),
+        linear-gradient(180deg, #f7f8f5 0%, #edf2f1 100%);
       min-height: 100vh;
     }
     a { color: inherit; text-decoration: none; }
@@ -97,6 +97,25 @@
     label { display: grid; gap: 8px; font-size: 0.94rem; }
     input, select { width: 100%; padding: 12px 14px; border-radius: 14px; border: 1px solid var(--line); background: rgba(255, 255, 255, 0.8); font: inherit; }
     .footer-note { margin-top: 12px; color: var(--muted); font-size: 0.92rem; }
+    .dashboard-hero { padding: 28px; }
+    .dashboard-hero h2 { max-width: 920px; }
+    .dashboard-hero .topbar { align-items: flex-start; }
+    .dashboard-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+    .upload-strip { margin-top: 18px; padding: 14px; border: 1px solid var(--line); border-radius: 16px; background: rgba(255, 255, 255, 0.46); justify-content: space-between; }
+    .dashboard-kpi { min-height: 170px; display: grid; align-content: space-between; border-top: 4px solid var(--accent); }
+    .dashboard-kpi:nth-child(2) { border-top-color: #355c7d; }
+    .dashboard-kpi:nth-child(3) { border-top-color: #4f6f52; }
+    .dashboard-kpi:nth-child(4) { border-top-color: var(--accent-2); }
+    .dashboard-kpi .metric { font-size: 1.8rem; line-height: 1.1; overflow-wrap: anywhere; }
+    .section-heading { display: flex; justify-content: space-between; align-items: end; gap: 14px; margin: 10px 0 14px; }
+    .section-heading h3 { margin: 0; font-size: 1.45rem; }
+    .section-heading p { margin: 4px 0 0; color: var(--muted); }
+    .dashboard-panel { min-height: 100%; }
+    .quick-action-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-top: 14px; }
+    .quick-action { display: grid; gap: 4px; padding: 14px; border: 1px solid var(--line); border-radius: 14px; background: rgba(255, 255, 255, 0.54); transition: transform 160ms ease, border-color 160ms ease, background 160ms ease; }
+    .quick-action:hover { transform: translateY(-2px); border-color: rgba(11, 110, 79, 0.32); background: rgba(11, 110, 79, 0.07); }
+    .quick-action strong { font-size: 1rem; }
+    .quick-action span { color: var(--muted); font-size: 0.86rem; }
     .compact-form { display: grid; gap: 12px; }
     .stack { display: grid; gap: 18px; }
     .chip-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
@@ -210,6 +229,17 @@
     .status-node span { color: var(--muted); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.08em; }
     .status-link { height: 2px; background: var(--line); position: relative; }
     .status-link::after { content: ""; position: absolute; right: -1px; top: -5px; width: 0; height: 0; border-top: 6px solid transparent; border-bottom: 6px solid transparent; border-left: 9px solid rgba(31, 41, 51, 0.32); }
+    .prediction-panel { border-color: rgba(11, 110, 79, 0.22); }
+    .prediction-grid { display: grid; grid-template-columns: minmax(260px, 0.8fr) minmax(320px, 1.2fr); gap: 18px; align-items: stretch; }
+    .prediction-summary { display: grid; align-content: space-between; gap: 18px; min-height: 240px; }
+    .prediction-summary .metric { font-size: 1.85rem; }
+    .prediction-delta { color: var(--accent); }
+    .prediction-chart { min-height: 240px; display: grid; grid-template-columns: repeat(5, minmax(42px, 1fr)); gap: 14px; align-items: end; padding: 18px 4px 0; border-bottom: 1px solid var(--line); }
+    .prediction-point { min-width: 0; height: 220px; display: grid; grid-template-rows: 1fr auto auto; gap: 8px; align-items: end; text-align: center; }
+    .prediction-bar { width: 100%; min-height: 8px; border-radius: 12px 12px 4px 4px; background: linear-gradient(180deg, #355c7d, var(--accent)); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.32); }
+    .prediction-point strong { font-size: 0.9rem; overflow-wrap: anywhere; }
+    .prediction-point span { color: var(--muted); font-size: 0.84rem; }
+    .prediction-caption { margin: 12px 0 0; color: var(--muted); }
     @media print {
       body { background: #fff; }
       .shell { width: 100%; margin: 0; display: block; }
@@ -224,8 +254,9 @@
       .shell, .split { grid-template-columns: 1fr; }
       .sidebar { position: static; }
       .report-cover { display: grid; }
+      .dashboard-actions { justify-content: flex-start; }
       .report-progress { grid-template-columns: 1fr; }
-      .report-visual-grid, .allocation-map, .flow-diagram, .performance-row, .page-visual-grid, .visual-bar-row { grid-template-columns: 1fr; }
+      .report-visual-grid, .allocation-map, .flow-diagram, .performance-row, .page-visual-grid, .visual-bar-row, .prediction-grid { grid-template-columns: 1fr; }
       .runway-gauge, .comparison-row { grid-template-columns: 1fr; }
       .ladder { grid-template-columns: repeat(2, 1fr); }
       .status-flow { grid-template-columns: 1fr; gap: 10px; }
@@ -250,8 +281,8 @@
         <h2>Data Sections</h2>
         {% set active_entity = nav_key if nav_key is defined else (request.view_args.get('entity_key') if request.view_args else None) %}
         {% for key, item in entities.items() %}
-          {% if key not in ['fixed_deposits', 'mutual_funds', 'utility_bills', 'earnings', 'variable_chits', 'variable_chit_payments'] %}
-            <a class="nav-link {% if active_entity == key %}active{% endif %}" href="{% if key == 'bank_accounts' %}{{ url_for('bank_accounts_page') }}{% elif key == 'stocks' %}{{ url_for('stocks_page') }}{% elif key == 'spending' %}{{ url_for('spending_page') }}{% elif key == 'loans' %}{{ url_for('loans_page') }}{% else %}{{ url_for('entity_list', entity_key=key) }}{% endif %}">{% if key == 'standard_chits' %}Chits{% elif key == 'bank_accounts' %}Banking & Deposits{% elif key == 'stocks' %}Stocks & Mutual Funds{% elif key == 'spending' %}Spending & Utility Bills{% elif key == 'loans' %}Capital & Earnings{% else %}{{ item.title }}{% endif %}</a>
+          {% if key not in ['fixed_deposits', 'utility_bills', 'earnings', 'variable_chits', 'variable_chit_payments'] %}
+            <a class="nav-link {% if active_entity == key %}active{% endif %}" href="{% if key == 'bank_accounts' %}{{ url_for('bank_accounts_page') }}{% elif key == 'stocks' %}{{ url_for('stocks_page') }}{% elif key == 'mutual_funds' %}{{ url_for('mutual_funds_page') }}{% elif key == 'spending' %}{{ url_for('spending_page') }}{% elif key == 'loans' %}{{ url_for('loans_page') }}{% else %}{{ url_for('entity_list', entity_key=key) }}{% endif %}">{% if key == 'standard_chits' %}Chits{% elif key == 'bank_accounts' %}Banking & Deposits{% elif key == 'stocks' %}Stocks{% elif key == 'mutual_funds' %}Mutual Funds{% elif key == 'spending' %}Spending & Utility Bills{% elif key == 'loans' %}Capital & Earnings{% else %}{{ item.title }}{% endif %}</a>
           {% endif %}
         {% endfor %}
       </div>

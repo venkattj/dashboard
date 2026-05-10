@@ -5,6 +5,11 @@ from typing import Any, Callable
 
 from flask import render_template
 
+try:
+    from .predictions import build_prediction_graph
+except ImportError:
+    from routes.predictions import build_prediction_graph
+
 
 def build_sneha_payments_page_context(
     fetch_all: Callable[..., list],
@@ -39,6 +44,12 @@ def build_sneha_payments_page_context(
 
     return {
         "rows": rows,
+        "prediction": build_prediction_graph(
+            "Repayment Prediction",
+            "Average recorded payment projected across the next 12 scheduled rows.",
+            monthly_delta=average_payment,
+            cumulative=True,
+        ),
         "insights": {
             "entry_count": len(rows),
             "total_paid": total_paid,

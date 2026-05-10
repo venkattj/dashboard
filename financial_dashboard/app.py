@@ -29,6 +29,7 @@ try:
     from .routes.loans import register_loans_routes
     from .routes.mutual_funds import register_mutual_funds_routes
     from .routes.overall_assets import register_overall_assets_routes
+    from .routes.predictions import build_entity_prediction, build_overall_prediction
     from .routes.sneha_payments import register_sneha_payments_routes
     from .routes.spending import register_spending_routes
     from .routes.stocks import register_stocks_routes
@@ -45,6 +46,7 @@ except ImportError:
     from routes.loans import register_loans_routes
     from routes.mutual_funds import register_mutual_funds_routes
     from routes.overall_assets import register_overall_assets_routes
+    from routes.predictions import build_entity_prediction, build_overall_prediction
     from routes.sneha_payments import register_sneha_payments_routes
     from routes.spending import register_spending_routes
     from routes.stocks import register_stocks_routes
@@ -1502,6 +1504,9 @@ def build_reports_context() -> dict[str, Any]:
     fd_total = next((as_float(item["amount"]) for item in allocation if item["label"] == "Fixed Deposits"), 0.0)
     liquid_total = bank_total + fd_total
     liquidity_months = (liquid_total / outflow_total) if outflow_total else 0.0
+    bank_rows = rows["bank_accounts"]
+    top_bank_account = max(bank_rows, key=lambda row: as_float(row.get("balance")), default=None)
+    bank_cash_share = percent_of(bank_total, asset_total)
     income_vs_outflow = [
         {"label": "Income", "amount": as_float(metrics["monthly_income"]), "color": "#0b6e4f"},
         {"label": "Outflow", "amount": as_float(metrics["monthly_spend"]), "color": "#c26d2b"},
@@ -1637,6 +1642,10 @@ def build_reports_context() -> dict[str, Any]:
         {"label": "1% Market Move", "amount": one_pct_market_move, "note": "Sensitivity on stocks and funds"},
     ]
     largest_future_focus = max((abs(item["amount"]) for item in future_focus), default=1) or 1
+    overall_prediction = build_overall_prediction(
+        net_worth=as_float(metrics["net_worth"]),
+        monthly_surplus=as_float(metrics["monthly_surplus"]),
+    )
     attention_cards = [
         {
             "label": "Liquidity Runway",
@@ -1649,9 +1658,14 @@ def build_reports_context() -> dict[str, Any]:
             "note": f"{concentration[0]['label']} is the largest allocation." if concentration else "No allocation data yet.",
         },
         {
-            "label": "Near Maturities",
-            "value": str(len(near_maturities)),
-            "note": "Fixed deposits maturing within 180 days.",
+            "label": "Bank Cash",
+            "value": format_currency(bank_total),
+            "note": (
+                f"{bank_cash_share:.1f}% of assets across {len(bank_rows)} account(s). "
+                f"Top: {top_bank_account.get('bank_name') or 'Unknown bank'}."
+                if top_bank_account
+                else "No bank account balances available."
+            ),
         },
         {
             "label": "Outflow Load",
@@ -1685,6 +1699,7 @@ def build_reports_context() -> dict[str, Any]:
         "largest_future_amount": largest_future_amount,
         "future_focus": future_focus,
         "largest_future_focus": largest_future_focus,
+        "overall_prediction": overall_prediction,
         "fd_liquidity_windows": fd_liquidity_windows,
         "annual_surplus": annual_surplus,
         "annual_income": annual_income,
@@ -1788,6 +1803,7 @@ def build_generic_entity_context(entity_key: str, rows: list[dict[str, Any]]) ->
             "average_value": average_value,
             "top_row": top_row,
         },
+        "prediction": build_entity_prediction(entity_key, rows, as_float(total_value), as_float),
         "filter_options": filter_options,
     }
 

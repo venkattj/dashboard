@@ -4,6 +4,11 @@ from typing import Any, Callable
 
 from flask import render_template
 
+try:
+    from .predictions import build_entity_prediction
+except ImportError:
+    from routes.predictions import build_entity_prediction
+
 
 def build_overall_assets_page_context(
     fetch_all: Callable[..., list],
@@ -22,6 +27,7 @@ def build_overall_assets_page_context(
 
     return {
         "rows": rows,
+        "prediction": build_entity_prediction("overall_assets", rows, total_assets, as_float),
         "insights": {
             "entry_count": len(rows),
             "total_assets": total_assets,

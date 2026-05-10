@@ -56,6 +56,7 @@ def register_mutual_funds_routes(
             fetch_all=fetch_all,
             as_float=as_float,
             mutual_fund_rows=mf_rows,
+            focus="mutual_funds",
         )
         last_sync_candidates = [row["nav_synced_at"] for row in mf_rows if row.get("nav_synced_at")]
         last_sync_at = max(last_sync_candidates) if last_sync_candidates else None
