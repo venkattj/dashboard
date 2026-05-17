@@ -239,7 +239,7 @@
       const rows = Array.from(tbody.querySelectorAll("tr[data-id]"));
 
       const primaryNumeric = {% if summary.primary_numeric %}"{{ summary.primary_numeric.name }}"{% else %}null{% endif %};
-      let sortState = { key: "id", direction: "desc", type: "number" };
+      let sortState = { key: "id", direction: "asc", type: "number" };
 
       const formatCurrency = (value) =>
         `Rs. ${Number(value || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -348,7 +348,7 @@
           if (sortState.key === nextKey) {
             sortState.direction = sortState.direction === "asc" ? "desc" : "asc";
           } else {
-            sortState = { key: nextKey, direction: nextType === "text" ? "asc" : "desc", type: nextType };
+            sortState = { key: nextKey, direction: nextKey === "id" || nextType === "text" ? "asc" : "desc", type: nextType };
           }
           applySort();
           applyFilters();
@@ -371,7 +371,7 @@
           element.value = "";
         });
         rows.forEach((row) => setRowEditing(row, false));
-        sortState = { key: "id", direction: "desc", type: "number" };
+        sortState = { key: "id", direction: "asc", type: "number" };
         applySort();
         applyFilters();
       });

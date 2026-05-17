@@ -268,7 +268,7 @@
           if (sortState.key === nextKey) {
             sortState.direction = sortState.direction === "asc" ? "desc" : "asc";
           } else {
-            sortState = { key: nextKey, direction: nextType === "text" ? "asc" : "desc", type: nextType };
+            sortState = { key: nextKey, direction: nextKey === "id" || nextType === "text" ? "asc" : "desc", type: nextType };
           }
           applySort();
           applyFilters();

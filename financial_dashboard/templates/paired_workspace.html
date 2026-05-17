@@ -390,7 +390,7 @@
         const rows = Array.from(table.querySelectorAll("tbody tr[data-id]"));
         const sortButtons = Array.from(table.querySelectorAll("[data-sort-key]"));
         const filters = Array.from(table.querySelectorAll("[data-filter-key]"));
-        let sortState = { key: "id", direction: "desc", type: "number" };
+        let sortState = { key: "id", direction: "asc", type: "number" };
 
         const paintSortLabels = () => {
           sortButtons.forEach((button) => {
@@ -461,7 +461,7 @@
             if (sortState.key === nextKey) {
               sortState.direction = sortState.direction === "asc" ? "desc" : "asc";
             } else {
-              sortState = { key: nextKey, direction: nextType === "text" ? "asc" : "desc", type: nextType };
+              sortState = { key: nextKey, direction: nextKey === "id" || nextType === "text" ? "asc" : "desc", type: nextType };
             }
             applySort();
             applyFilters();
@@ -484,7 +484,7 @@
             filter.value = "";
           });
           rows.forEach((row) => setRowEditing(row, false));
-          sortState = { key: "id", direction: "desc", type: "number" };
+          sortState = { key: "id", direction: "asc", type: "number" };
           applySort();
           applyFilters();
         });
