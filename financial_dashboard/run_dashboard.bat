@@ -46,7 +46,11 @@ if errorlevel 1 (
   )
 )
 
+set "DASHBOARD_URL=http://127.0.0.1:5000"
+
 echo Starting Financial Dashboard...
+echo Chrome will open when the dashboard is ready.
+start "" powershell -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -Command "$url='%DASHBOARD_URL%'; for ($i = 0; $i -lt 60; $i++) { try { $response = Invoke-WebRequest -UseBasicParsing -Uri $url -TimeoutSec 1; if ($response.StatusCode -ge 200) { try { Start-Process 'chrome.exe' -ArgumentList $url } catch { Start-Process $url }; exit 0 } } catch { }; Start-Sleep -Seconds 1 }; try { Start-Process 'chrome.exe' -ArgumentList $url } catch { Start-Process $url }"
 %PYTHON% app.py
 
 endlocal
